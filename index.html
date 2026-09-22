@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="description" content="SJC Campus Lost & Found — report and find lost belongings at Saint Jude College Manila.">
+    <meta name="theme-color" content="#166534">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SJC Lost & Found">
+    <meta name="application-name" content="SJC Lost & Found">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-TileColor" content="#166534">
+    <meta name="msapplication-tap-highlight" content="no">
+    <title>SJC Campus Lost &amp; Found</title>
+    <script>
+    (function () {
+        try {
+            var raw = localStorage.getItem('pocketbase_auth');
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            var rec = data.record || data.model;
+            if (rec && rec.role === 'admin') {
+                document.documentElement.classList.add('is-admin');
+                var style = document.createElement('style');
+                style.textContent =
+                    '.nav-links a[href="report.html"], .nav-links a[href="index.html"] { display: none !important; }';
+                document.head.appendChild(style);
+                window.location.replace('admin.html');
+            }
+        } catch (e) { }
+    })();
+    </script>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/index.css">
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+    <header>
+        <a href="index.html" class="brand" aria-label="SJC Campus Lost and Found home">
+            <span class="sjc-logo" aria-hidden="true">SJC</span>
+            <span class="brand-copy">
+                <strong>Campus Lost &amp; Found</strong>
+                <small>Saint Jude College Manila</small>
+            </span>
+        </a>
+
+        <button class="hamburger" id="hamburgerBtn" type="button" aria-label="Open navigation" aria-controls="navLinks" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+
+        <nav aria-label="Main navigation">
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html" class="active" aria-current="page">Home</a></li>
+                <li><a href="items.html">Lost &amp; Found</a></li>
+                <li><a href="report.html" data-require-auth>Report</a></li>
+                <li id="navAuth" class="nav-auth"></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <span class="eyebrow">SJC COMMUNITY SERVICE</span>
+            <h1>Lost Something on Campus?</h1>
+            <p>Find it faster. Report it safely. Help return belongings to their owners.</p>
+            <div class="hero-actions">
+                <a href="report.html" class="button button-secondary" data-require-auth>Report an Item</a>
+                <a href="items.html" class="button button-secondary">Browse Items</a>
+            </div>
+            <div class="hero-note"><i data-lucide="shield-check" aria-hidden="true"></i> For the SJC community</div>
+        </section>
+
+        <section class="features">
+            <div class="section-heading">
+                <span class="eyebrow">HOW IT WORKS</span>
+                <h2>A simpler way to reconnect with your belongings</h2>
+            </div>
+            <div class="card-grid">
+                <article class="card">
+                    <div class="icon-wrap"><i data-lucide="search" aria-hidden="true"></i></div>
+                    <h3>Find an Item</h3>
+                    <p>Search reported lost and found items by category, location, and date.</p>
+                    <a href="items.html" class="text-link">Browse items →</a>
+                </article>
+                <article class="card">
+                    <div class="icon-wrap"><i data-lucide="megaphone" aria-hidden="true"></i></div>
+                    <h3>Report an Item</h3>
+                    <p>Submit details about something you lost or found on campus.</p>
+                    <a href="report.html" class="text-link" data-require-auth>Make a report →</a>
+                </article>
+                <article class="card">
+                    <div class="icon-wrap"><i data-lucide="users" aria-hidden="true"></i></div>
+                    <h3>Stay Connected</h3>
+                    <p>Sign in to track your reports and manage your account securely.</p>
+                    <button class="text-link text-button" type="button" data-open-auth="signup">Create an account →</button>
+                </article>
+            </div>
+        </section>
+
+        <section class="school-info">
+            <span class="eyebrow">ABOUT THE PROJECT</span>
+            <h2>Built for the Saint Jude College community</h2>
+            <p>Our campus lost and found system makes it easier for students, faculty, and staff to report, search, and safely recover misplaced belongings.</p>
+        </section>
+    </main>
+
+    <footer><p>&copy; 2026 SJC Campus Lost &amp; Found. All rights reserved.</p></footer>
+
+    <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+        <div class="modal-content">
+            <button class="close-btn" id="closeAuthBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">SJC</span>
+                <div>
+                    <h2 id="modalTitle">Welcome back</h2>
+                    <p id="modalSubtitle">Sign in to manage your reports.</p>
+                </div>
+            </div>
+            <div class="auth-message" id="authMessage" role="alert"></div>
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="signinTab" type="button" data-auth-tab="signin">Sign In</button>
+                <button class="auth-tab" id="signupTab" type="button" data-auth-tab="signup">Sign Up</button>
+            </div>
+            <form id="signinForm" class="auth-form" novalidate>
+                <div class="form-group">
+                    <label for="signinEmail">PHINMAEd Email</label>
+                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <small class="guide">Use your official PHINMAEd email</small>
+                </div>
+                <div class="form-group">
+                    <label for="signinPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input id="signinPassword" type="password" placeholder="Enter your password" required>
+                        <button class="toggle-password" type="button" data-toggle-password="signinPassword">Show</button>
+                    </div>
+                    <small class="guide">Minimum of 6 characters</small>
+                </div>
+                <button class="submit-button" type="submit">Sign In</button>
+                <p class="form-footer">
+                    Can't sign in?
+                    <button type="button" class="inline-button" data-auth-tab="signup">Create an account</button>
+                </p>
+            </form>
+            <form id="signupForm" class="auth-form" hidden novalidate>
+                <div class="form-group">
+                    <label for="signupName">Full Name</label>
+                    <input id="signupName" type="text" placeholder="Juan Dela Cruz" required>
+                    <small class="guide">Enter your complete name</small>
+                </div>
+                <div class="form-group">
+                    <label for="signupEmail">PHINMAEd Email</label>
+                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <small class="guide">Must end with @phinmaed.com</small>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input id="signupPassword" type="password" placeholder="Create a password" required>
+                        <button class="toggle-password" type="button" data-toggle-password="signupPassword">Show</button>
+                    </div>
+                    <small class="guide">At least 6 characters</small>
+                </div>
+                <div class="form-group">
+                    <label for="signupConfirmPassword">Confirm Password</label>
+                    <input id="signupConfirmPassword" type="password" placeholder="Re-enter your password" required>
+                    <small class="guide">Type the same password again</small>
+                </div>
+                <button class="submit-button" type="submit">Create Account</button>
+                <p class="form-footer">
+                    Already have an account?
+                    <button type="button" class="inline-button" data-auth-tab="signin">Sign in</button>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+</body>
+</html> 

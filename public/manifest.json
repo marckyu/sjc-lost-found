@@ -1,0 +1,16 @@
+{
+    "name": "SJC Campus Lost & Found",
+    "short_name": "SJC Lost & Found",
+    "description": "Report and find lost belongings at Saint Jude College Manila",
+    "start_url": "index.html",
+    "scope": "./",
+    "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
+    "orientation": "portrait-primary",
+    "background_color": "#166534",
+    "theme_color": "#166534",
+    "lang": "en",
+    "dir": "ltr",
+    "categories": ["education", "productivity", "utilities"],
+    "icons": []
+}

@@ -1,0 +1,160 @@
+:root {
+    --green-900: #14532d;
+    --green-800: #166534;
+    --green-700: #15803d;
+    --green-300: #86efac;
+    --text: #26352d;
+    --muted: #64748b;
+    --red: #dc2626;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: var(--text);
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background:
+        linear-gradient(rgba(10, 55, 30, 0.55), rgba(10, 55, 30, 0.55)),
+        url("saintjude.jpg") center / cover fixed;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-top: 5px solid var(--green-700);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.1),
+        0 2px 6px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px) saturate(1.2);
+    -webkit-backdrop-filter: blur(10px) saturate(1.2);
+}
+
+.login-header {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.login-header .logo {
+    width: 60px;
+    height: 60px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 15px;
+    border-radius: 50%;
+    color: var(--green-800);
+    background: var(--green-300);
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.login-header h2 {
+    margin-bottom: 5px;
+    color: var(--green-900);
+    font-size: 24px;
+}
+
+.login-header p {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.auth-message {
+    display: none;
+    margin-bottom: 20px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.auth-message.success {
+    display: block;
+    color: #047857;
+    background: #d1fae5;
+}
+
+.auth-message.error {
+    display: block;
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 7px;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #bbd7c4;
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 15px;
+}
+
+.form-group input:focus {
+    border-color: var(--green-800);
+    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
+}
+
+.submit-button {
+    width: 100%;
+    border: 0;
+    border-radius: 8px;
+    padding: 14px;
+    cursor: pointer;
+    color: #fff;
+    background: var(--green-800);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 800;
+    transition: 0.2s ease;
+}
+
+.submit-button:hover {
+    background: var(--green-700);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(22, 101, 52, 0.3);
+}
+
+.back-link {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.back-link a {
+    color: var(--green-800);
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.back-link a:hover {
+    text-decoration: underline;
+}

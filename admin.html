@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#166534">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SJC Lost & Found">
+    <meta name="msapplication-TileColor" content="#166534">
+    <meta name="msapplication-tap-highlight" content="no">
+    <title>SJC Admin Dashboard</title>
+    <script>
+    (function () {
+        try {
+            var raw = localStorage.getItem('pocketbase_auth');
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            var rec = data.record || data.model;
+            if (rec && rec.role === 'admin') {
+                document.documentElement.classList.add('is-admin');
+                var style = document.createElement('style');
+                style.textContent =
+                    '.nav-links a[href="report.html"], .nav-links a[href="index.html"] { display: none !important; }';
+                document.head.appendChild(style);
+            }
+        } catch (e) { }
+    })();
+    </script>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/admin.css">
+    <script type="module" src="/src/admin.ts"></script>
+</head>
+<body>
+    <header>
+        <a href="admin.html" class="brand">
+            <span class="sjc-logo">SJC</span>
+            <span class="brand-copy">
+                <strong>Admin Dashboard</strong>
+                <small>Saint Jude College Manila</small>
+            </span>
+        </a>
+
+        <button class="hamburger" id="hamburgerBtn" type="button" aria-label="Open navigation" aria-controls="navLinks" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+
+        <nav aria-label="Main navigation">
+            <ul class="nav-links" id="navLinks">
+                <li><a href="items.html">Lost &amp; Found</a></li>
+                <li><a href="admin.html" class="active" aria-current="page">Dashboard</a></li>
+                <li id="navAuth"></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="dashboard-header">
+            <p>ADMIN AREA</p>
+            <h1>Admin Dashboard</h1>
+            <span>Manage all lost and found items in one place.</span>
+        </section>
+
+        <section class="stats-grid">
+            <article class="stat-card">
+                <strong id="totalItems">0</strong>
+                <span>Total Items</span>
+            </article>
+            <article class="stat-card lost">
+                <strong id="lostItems">0</strong>
+                <span>Lost Items</span>
+            </article>
+            <article class="stat-card found">
+                <strong id="foundItems">0</strong>
+                <span>Found Items</span>
+            </article>
+            <article class="stat-card verified">
+                <strong id="verifiedItems">0</strong>
+                <span>Verified Items</span>
+            </article>
+        </section>
+
+        <section class="admin-panel">
+            <div class="panel-heading">
+                <div>
+                    <p>LOST &amp; FOUND REPORTS</p>
+                    <h2>Manage Items</h2>
+                </div>
+                <div class="admin-actions">
+                    <button class="admin-button secondary" id="refreshBtn" type="button">Refresh</button>
+                    <button class="admin-button danger" id="clearBtn" type="button">Clear All</button>
+                </div>
+            </div>
+
+            <div class="table-toolbar">
+                <div class="search-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="tableSearch" placeholder="Search items, users, contact...">
+                </div>
+                <select id="statusFilter" class="filter-select">
+                    <option value="all">All Status</option>
+                    <option value="lost">Lost</option>
+                    <option value="found">Found</option>
+                    <option value="verified">Verified</option>
+                    <option value="pending">Pending</option>
+                </select>
+            </div>
+
+            <div id="itemsList" class="table-wrapper">
+                <div class="empty-state">
+                    <p>No items reported yet.</p>
+                </div>
+            </div>
+
+            <div id="pagination" class="pagination"></div>
+        </section>
+    </main>
+
+    <footer><p>&copy; 2026 SJC Campus Lost &amp; Found</p></footer>
+
+    <div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+        <div class="modal-content confirm-content">
+            <div class="confirm-icon" id="confirmIcon">?</div>
+            <h2 id="confirmTitle">Are you sure?</h2>
+            <p id="confirmMessage">This action cannot be undone.</p>
+            <div class="confirm-actions">
+                <button class="admin-button secondary" id="confirmCancel" type="button">Cancel</button>
+                <button class="admin-button" id="confirmOk" type="button">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="notifyModal" role="dialog" aria-modal="true" aria-labelledby="notifyTitle" hidden>
+        <div class="modal-content">
+            <button class="close-btn" type="button" data-close aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">SJC</span>
+                <div>
+                    <h2 id="notifyTitle">Send Notification</h2>
+                    <p>Send an update to the reporter.</p>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="notifyTo">To</label>
+                <input type="email" id="notifyTo" readonly>
+            </div>
+            <div class="form-group">
+                <label for="notifySubject">Subject</label>
+                <input type="text" id="notifySubject" placeholder="Update about your item">
+            </div>
+            <div class="form-group">
+                <label for="notifyMessage">Message</label>
+                <textarea id="notifyMessage" data-max="500" placeholder="Type your message..."></textarea>
+                <small class="char-counter" id="notifyCounter">0 / 500</small>
+            </div>
+            <div class="confirm-actions">
+                <button class="admin-button secondary" type="button" data-close>Cancel</button>
+                <button class="admin-button" id="notifySend" type="button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="image-modal" id="imageModal" role="dialog" aria-modal="true" aria-label="Image preview">
+        <button class="image-modal-close" type="button" aria-label="Close">&times;</button>
+        <img id="imageModalImg" src="" alt="Item image">
+    </div>
+
+    <div class="toast" id="toast"></div>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#166534">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SJC Lost & Found">
+    <meta name="msapplication-TileColor" content="#166534">
+    <meta name="msapplication-tap-highlight" content="no">
+    <title>Report an Item | SJC Campus Lost &amp; Found</title>
+    <script>
+    (function () {
+        try {
+            var raw = localStorage.getItem('pocketbase_auth');
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            var rec = data.record || data.model;
+            if (rec && rec.role === 'admin') {
+                document.documentElement.classList.add('is-admin');
+                var style = document.createElement('style');
+                style.textContent =
+                    '.nav-links a[href="report.html"], .nav-links a[href="index.html"] { display: none !important; }';
+                document.head.appendChild(style);
+                window.location.replace('admin.html');
+            }
+        } catch (e) { }
+    })();
+    </script>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/report.css">
+    <script type="module" src="/src/report.ts"></script>
+</head>
+<body>
+    <header>
+        <a href="index.html" class="brand">
+            <span class="sjc-logo">SJC</span>
+            <span class="brand-copy">
+                <strong>Campus Lost &amp; Found</strong>
+                <small>Saint Jude College Manila</small>
+            </span>
+        </a>
+
+        <button class="hamburger" id="hamburgerBtn" type="button" aria-label="Open navigation" aria-controls="navLinks" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+
+        <nav aria-label="Main navigation">
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="items.html">Lost &amp; Found</a></li>
+                <li><a href="report.html" class="active" aria-current="page" data-require-auth>Report</a></li>
+                <li id="navAuth"></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="form-container">
+            <p class="eyebrow">SJC COMMUNITY SERVICE</p>
+            <h1>Report an Item</h1>
+            <p class="subtitle">Submit accurate details so the item can be returned safely.</p>
+
+            <div class="message success-message" id="successMessage" role="status"></div>
+            <div class="message error-message" id="errorMessage" role="alert"></div>
+
+            <form id="reportForm">
+                <div class="form-group">
+                    <label for="reportType">Report Type *</label>
+                    <select id="reportType" required>
+                        <option value="">Select type...</option>
+                        <option value="lost">I Lost an Item</option>
+                        <option value="found">I Found an Item</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemName">Item Name *</label>
+                    <input id="itemName" type="text" placeholder="e.g., Black wallet, iPhone 13, calculator" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Category *</label>
+                    <select id="category" required>
+                        <option value="">Select category...</option>
+                        <option value="gadgets">Gadgets &amp; Electronics</option>
+                        <option value="books">Books &amp; Notebooks</option>
+                        <option value="ids">IDs &amp; Cards</option>
+                        <option value="wallets">Wallets &amp; Bags</option>
+                        <option value="keys">Keys &amp; Small Items</option>
+                        <option value="clothing">Clothing &amp; Accessories</option>
+                        <option value="documents">Documents &amp; Papers</option>
+                        <option value="others">Others</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Location *</label>
+                    <input id="location" type="text" placeholder="e.g., Library, Room 203, Cafeteria" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="date">Date &amp; Time *</label>
+                    <input id="date" type="datetime-local" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description *</label>
+                    <textarea id="description" placeholder="Add color, brand, or identifying details..." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="contact">PHINMAEd Email *</label>
+                    <input id="contact" type="email" placeholder="name@phinmaed.com" readonly required>
+                    <small>Use your official PHINMAEd email address.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemImages">Upload Images (optional, max 5)</label>
+                    <div class="upload-area" id="uploadArea">
+                        <input id="itemImages" type="file" accept="image/*" multiple hidden>
+                        <div class="upload-preview" id="uploadPreview"></div>
+                    </div>
+                    <small class="guide">Click or drag images — JPG, PNG, or GIF, up to 5</small>
+                </div>
+
+                <button class="submit-button" type="submit">Submit Report</button>
+            </form>
+        </section>
+    </main>
+
+    <footer><p>&copy; 2026 SJC Campus Lost &amp; Found</p></footer>
+
+    <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+        <div class="modal-content">
+            <button class="close-btn" id="closeAuthBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">SJC</span>
+                <div>
+                    <h2 id="modalTitle">Welcome back</h2>
+                    <p id="modalSubtitle">Sign in to manage your reports.</p>
+                </div>
+            </div>
+            <div class="auth-message" id="authMessage" role="alert"></div>
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="signinTab" type="button" data-auth-tab="signin">Sign In</button>
+                <button class="auth-tab" id="signupTab" type="button" data-auth-tab="signup">Sign Up</button>
+            </div>
+            <form id="signinForm" class="auth-form" novalidate>
+                <div class="form-group">
+                    <label for="signinEmail">PHINMAEd Email</label>
+                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <small class="guide">Use your official PHINMAEd email</small>
+                </div>
+                <div class="form-group">
+                    <label for="signinPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input id="signinPassword" type="password" placeholder="Enter your password" required>
+                        <button class="toggle-password" type="button" data-toggle-password="signinPassword">Show</button>
+                    </div>
+                    <small class="guide">Minimum of 6 characters</small>
+                </div>
+                <button class="submit-button" type="submit">Sign In</button>
+                <p class="form-footer">
+                    Can't sign in?
+                    <button type="button" class="inline-button" data-auth-tab="signup">Create an account</button>
+                </p>
+            </form>
+            <form id="signupForm" class="auth-form" hidden novalidate>
+                <div class="form-group">
+                    <label for="signupName">Full Name</label>
+                    <input id="signupName" type="text" placeholder="Juan Dela Cruz" required>
+                    <small class="guide">Enter your complete name</small>
+                </div>
+                <div class="form-group">
+                    <label for="signupEmail">PHINMAEd Email</label>
+                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <small class="guide">Must end with @phinmaed.com</small>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input id="signupPassword" type="password" placeholder="Create a password" required>
+                        <button class="toggle-password" type="button" data-toggle-password="signupPassword">Show</button>
+                    </div>
+                    <small class="guide">At least 6 characters</small>
+                </div>
+                <div class="form-group">
+                    <label for="signupConfirmPassword">Confirm Password</label>
+                    <input id="signupConfirmPassword" type="password" placeholder="Re-enter your password" required>
+                    <small class="guide">Type the same password again</small>
+                </div>
+                <button class="submit-button" type="submit">Create Account</button>
+                <p class="form-footer">
+                    Already have an account?
+                    <button type="button" class="inline-button" data-auth-tab="signin">Sign in</button>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+</body>
+</html>
