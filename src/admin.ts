@@ -108,7 +108,7 @@ function renderTable(): void {
                     ${!item.verified && !item.recovered ? `<button class="action-btn verify" data-action="verify" data-id="${item.id}">Verify</button>` : ''}
                     ${item.verified && !item.recovered ? `<button class="action-btn recover" data-action="recover" data-id="${item.id}">Mark Recovered</button>` : ''}
                     <button class="action-btn notify" data-action="notify" data-id="${item.id}">Notify</button>
-                    <button class="action-btn toggle" data-action="toggle" data-id="${item.id}">Toggle</button>
+                    ${!item.recovered ? `<button class="action-btn toggle" data-action="toggle" data-id="${item.id}">Toggle</button>` : ''}
                     <button class="action-btn delete" data-action="delete" data-id="${item.id}">Delete</button>
                 </td>
             </tr>
