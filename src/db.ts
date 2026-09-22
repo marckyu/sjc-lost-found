@@ -24,11 +24,18 @@ function itemFromRecord(r: RecordModel): Item {
         location: r.location,
         description: r.description,
         status: r.status as ItemStatus,
+        date: toDate(r.date),
         verified: r.verified ?? false,
+        verifiedAt: toDate(r.verifiedAt),
+        recovered: r.recovered ?? false,
+        recoveredAt: toDate(r.recoveredAt),
+        recoveredBy: r.recoveredBy ?? null,
+        matchedWithItemId: r.matchedWithItemId ?? null,
+        matchedAt: toDate(r.matchedAt),
+        returnedAt: toDate(r.returnedAt),
         imageUrls: files.map(name => pb.files.getURL(r, name, { download: false })),
-        createdAt: toDate(r.created) ?? new Date(),
-        verifiedAt: toDate(r.verifiedAt)
-    } as Item;
+        createdAt: toDate(r.created) ?? new Date()
+    };
 }
 
 export async function getAllItems(): Promise<Item[]> {
@@ -103,6 +110,15 @@ export async function verifyItem(itemId: string): Promise<void> {
     await pb.collection(ITEMS_COL).update(itemId, {
         verified: true,
         verifiedAt: new Date().toISOString()
+    });
+}
+
+export async function markAsRecovered(itemId: string, userId: string): Promise<void> {
+    await pb.collection(ITEMS_COL).update(itemId, {
+        recovered: true,
+        recoveredAt: new Date().toISOString(),
+        recoveredBy: userId,
+        status: 'recovered'
     });
 }
 

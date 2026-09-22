@@ -24,7 +24,7 @@ function getStatusBadge(status: string): { cls: string; label: string } {
         case 'returning':
             return { cls: 'status-verified', label: 'Returning' };
         case 'recovered':
-            return { cls: 'status-found', label: 'Recovered' };
+            return { cls: 'status-recovered', label: 'Recovered' };
         default:
             return { cls: 'status-pending', label: 'Unknown' };
     }
@@ -40,11 +40,13 @@ function renderItems(items: Item[]): void {
 
     grid.innerHTML = items
         .map(item => {
-            const badge = getStatusBadge(item.status);
-            const verifiedBadge = item.verified
+            const badge = item.recovered
+                ? { cls: 'status-recovered', label: 'Recovered' }
+                : getStatusBadge(item.status);
+            const verifiedBadge = item.verified && !item.recovered
                 ? '<span class="verified-badge">✓ Verified</span>'
                 : '';
-            const claimBtn = item.verified
+            const claimBtn = item.verified && !item.recovered
                 ? `<button type="button" class="claim-button" data-claim="${item.id}">Claim This Item</button>`
                 : '';
             const hasImages = item.imageUrls.length > 0;
@@ -149,8 +151,8 @@ function filterItems(): void {
     const filtered = allItems.filter(item => {
         const matchSearch =
             !search ||
-            item.itemName.toLowerCase().includes(search) ||
-            item.description.toLowerCase().includes(search);
+            (item.itemName ?? '').toLowerCase().includes(search) ||
+            (item.description ?? '').toLowerCase().includes(search);
         const matchCategory = category === 'all' || item.category === category;
         const matchStatus = status === 'all' || item.status === status;
         return matchSearch && matchCategory && matchStatus;

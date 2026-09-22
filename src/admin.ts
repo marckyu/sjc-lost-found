@@ -1,10 +1,14 @@
+import './main';
+import './pwa';
 import { getCurrentUser } from './auth';
-import { watchItems, verifyItem, deleteItem, toggleItemStatus, sendNotification } from './db';
+import { watchItems, verifyItem, deleteItem, toggleItemStatus, sendNotification, markAsRecovered } from './db';
 import { showToast, escapeHtml, formatDate } from './ui';
 import type { Item, User } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
+let tableSearch = '';
+let statusFilter = 'all';
 
 const itemsList = document.getElementById('itemsList');
 
@@ -13,18 +17,39 @@ function renderStats(): void {
     const lost = document.getElementById('lostItems');
     const found = document.getElementById('foundItems');
     const verified = document.getElementById('verifiedItems');
+    const recovered = document.getElementById('recoveredItems');
 
     if (total) total.textContent = String(allItems.length);
-    if (lost) lost.textContent = String(allItems.filter(i => i.status === 'lost').length);
-    if (found) found.textContent = String(allItems.filter(i => i.status === 'found').length);
-    if (verified) verified.textContent = String(allItems.filter(i => i.verified).length);
+    if (lost) lost.textContent = String(allItems.filter(i => i.status === 'lost' && !i.recovered).length);
+    if (found) found.textContent = String(allItems.filter(i => i.status === 'found' && !i.recovered).length);
+    if (verified) verified.textContent = String(allItems.filter(i => i.verified && !i.recovered).length);
+    if (recovered) recovered.textContent = String(allItems.filter(i => i.recovered).length);
+}
+
+function getFilteredItems(): Item[] {
+    const q = tableSearch.toLowerCase();
+    return allItems.filter(item => {
+        const matchesSearch = !q ||
+            (item.itemName ?? '').toLowerCase().includes(q) ||
+            (item.userName ?? '').toLowerCase().includes(q) ||
+            (item.userEmail ?? '').toLowerCase().includes(q);
+        const matchesStatus =
+            statusFilter === 'all' ||
+            (statusFilter === 'recovered' && item.recovered) ||
+            (statusFilter === 'verified' && item.verified && !item.recovered) ||
+            (statusFilter === 'pending' && !item.verified && !item.recovered) ||
+            item.status === statusFilter;
+        return matchesSearch && matchesStatus;
+    });
 }
 
 function renderTable(): void {
     if (!itemsList) return;
 
-    if (allItems.length === 0) {
-        itemsList.innerHTML = '<div class="empty-state"><p>No items reported yet.</p></div>';
+    const items = getFilteredItems();
+
+    if (items.length === 0) {
+        itemsList.innerHTML = '<div class="empty-state"><p>No items found.</p></div>';
         return;
     }
 
@@ -46,11 +71,14 @@ function renderTable(): void {
             <tbody>
     `;
 
-    allItems.forEach(item => {
+    items.forEach(item => {
         let statusClass = 'status-pending';
         let statusText = 'Pending';
 
-        if (item.verified) {
+        if (item.recovered) {
+            statusClass = 'status-recovered';
+            statusText = 'Recovered';
+        } else if (item.verified) {
             statusClass = 'status-verified';
             statusText = 'Verified';
         } else if (item.status === 'lost') {
@@ -77,7 +105,8 @@ function renderTable(): void {
                 <td data-label="Contact"><a href="mailto:${escapeHtml(item.userEmail)}" class="contact-link">${escapeHtml(item.userEmail)}</a></td>
                 <td data-label="Image">${imageCell}</td>
                 <td data-label="Actions">
-                    ${!item.verified ? `<button class="action-btn verify" data-action="verify" data-id="${item.id}">Verify</button>` : ''}
+                    ${!item.verified && !item.recovered ? `<button class="action-btn verify" data-action="verify" data-id="${item.id}">Verify</button>` : ''}
+                    ${item.verified && !item.recovered ? `<button class="action-btn recover" data-action="recover" data-id="${item.id}">Mark Recovered</button>` : ''}
                     <button class="action-btn notify" data-action="notify" data-id="${item.id}">Notify</button>
                     <button class="action-btn toggle" data-action="toggle" data-id="${item.id}">Toggle</button>
                     <button class="action-btn delete" data-action="delete" data-id="${item.id}">Delete</button>
@@ -112,6 +141,15 @@ function bindActions(): void {
                 } catch (err) {
                     console.error(err);
                     showToast('Failed to verify item.', 'error');
+                }
+            } else if (action === 'recover') {
+                if (!confirm(`Mark "${item.itemName}" as recovered?`)) return;
+                try {
+                    await markAsRecovered(id, currentUser!.uid);
+                    showToast(`"${item.itemName}" marked as recovered.`, 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Failed to mark as recovered.', 'error');
                 }
             } else if (action === 'toggle') {
                 try {
@@ -264,6 +302,16 @@ function bindUI(): void {
     });
 
     document.getElementById('clearBtn')?.addEventListener('click', handleClearAll);
+
+    document.getElementById('tableSearch')?.addEventListener('input', (e) => {
+        tableSearch = (e.target as HTMLInputElement).value;
+        renderTable();
+    });
+
+    document.getElementById('statusFilter')?.addEventListener('change', (e) => {
+        statusFilter = (e.target as HTMLSelectElement).value;
+        renderTable();
+    });
 
     document.getElementById('notifySend')?.addEventListener('click', handleSendNotification);
 

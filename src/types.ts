@@ -46,10 +46,13 @@ export interface Item {
     verified: boolean;
     verifiedAt: Date | null;
 
+    recovered: boolean;
+    recoveredAt: Date | null;
+    recoveredBy: string | null;
+
     matchedWithItemId: string | null;
     matchedAt: Date | null;
     returnedAt: Date | null;
-    recoveredAt: Date | null;
 
     imageUrls: string[];
     createdAt: Date;
