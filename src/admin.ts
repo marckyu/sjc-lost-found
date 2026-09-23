@@ -1,14 +1,26 @@
 import './main';
 import './pwa';
 import { getCurrentUser } from './auth';
-import { watchItems, verifyItem, deleteItem, toggleItemStatus, sendNotification, markAsRecovered } from './db';
+import {
+    watchItems,
+    verifyItem,
+    deleteItem,
+    toggleItemStatus,
+    sendNotification,
+    markAsRecovered,
+    saveMatch,
+    matchExists
+} from './db';
 import { showToast, escapeHtml, formatDate } from './ui';
+import { findMatches, MATCH_THRESHOLD } from './matching';
+import type { MatchResult } from './matching';
 import type { Item, User } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
 let tableSearch = '';
 let statusFilter = 'all';
+let computedMatches: MatchResult[] = [];
 
 const itemsList = document.getElementById('itemsList');
 
@@ -182,6 +194,113 @@ function bindActions(): void {
     });
 }
 
+async function runMatching(): Promise<void> {
+    const btn = document.getElementById('findMatchesBtn') as HTMLButtonElement | null;
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Scanning...';
+    }
+
+    try {
+        computedMatches = findMatches(allItems);
+        renderMatches();
+        openMatchesModal();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to run matching.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Find Matches';
+        }
+    }
+}
+
+function renderMatches(): void {
+    const list = document.getElementById('matchesList');
+    if (!list) return;
+
+    if (computedMatches.length === 0) {
+        list.innerHTML = `<div class="empty-state"><p>No matches found above ${MATCH_THRESHOLD}% threshold.</p></div>`;
+        return;
+    }
+
+    list.innerHTML = computedMatches.map((m, i) => `
+        <div class="match-card" data-match-index="${i}">
+            <div class="match-score">
+                <strong>${m.score}%</strong>
+                <small>confidence</small>
+            </div>
+            <div class="match-items">
+                <div class="match-item">
+                    <span class="match-label lost">LOST</span>
+                    <strong>${escapeHtml(m.lostItem.itemName)}</strong>
+                    <small>${escapeHtml(m.lostItem.location)} • ${escapeHtml(m.lostItem.userName)}</small>
+                </div>
+                <div class="match-item">
+                    <span class="match-label found">FOUND</span>
+                    <strong>${escapeHtml(m.foundItem.itemName)}</strong>
+                    <small>${escapeHtml(m.foundItem.location)} • ${escapeHtml(m.foundItem.userName)}</small>
+                </div>
+                <div class="match-breakdown">
+                    Category: ${m.breakdown.category}/30 •
+                    Location: ${m.breakdown.location}/20 •
+                    Name: ${m.breakdown.name}/25 •
+                    Description: ${m.breakdown.description}/15 •
+                    Date: ${m.breakdown.date}/10
+                </div>
+            </div>
+            <div class="match-actions">
+                <button class="admin-button" data-save-match="${i}">Confirm Match</button>
+            </div>
+        </div>
+    `).join('');
+
+    list.querySelectorAll<HTMLButtonElement>('[data-save-match]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const idx = Number(btn.dataset.saveMatch);
+            const match = computedMatches[idx];
+            if (!match) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                const exists = await matchExists(match.lostItem.id, match.foundItem.id);
+                if (exists) {
+                    showToast('Match already exists.', 'warning');
+                    btn.disabled = false;
+                    btn.textContent = 'Confirm Match';
+                    return;
+                }
+
+                await saveMatch(match);
+                showToast(`Match saved (${match.score}%).`, 'success');
+                btn.textContent = 'Saved ✓';
+            } catch (err) {
+                console.error(err);
+                showToast('Failed to save match.', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Confirm Match';
+            }
+        });
+    });
+}
+
+function openMatchesModal(): void {
+    const modal = document.getElementById('matchesModal');
+    if (!modal) return;
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMatchesModal(): void {
+    const modal = document.getElementById('matchesModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+}
+
 function openNotifyModal(item: Item): void {
     const modal = document.getElementById('notifyModal');
     const toInput = document.getElementById('notifyTo') as HTMLInputElement | null;
@@ -302,6 +421,10 @@ function bindUI(): void {
     });
 
     document.getElementById('clearBtn')?.addEventListener('click', handleClearAll);
+
+    document.getElementById('findMatchesBtn')?.addEventListener('click', runMatching);
+
+    document.getElementById('closeMatchesBtn')?.addEventListener('click', closeMatchesModal);
 
     document.getElementById('tableSearch')?.addEventListener('input', (e) => {
         tableSearch = (e.target as HTMLInputElement).value;

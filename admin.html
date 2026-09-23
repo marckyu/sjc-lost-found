@@ -92,6 +92,7 @@
                     <h2>Manage Items</h2>
                 </div>
                 <div class="admin-actions">
+                    <button class="admin-button" id="findMatchesBtn" type="button">Find Matches</button>
                     <button class="admin-button secondary" id="refreshBtn" type="button">Refresh</button>
                     <button class="admin-button danger" id="clearBtn" type="button">Clear All</button>
                 </div>
@@ -166,6 +167,20 @@
                 <button class="admin-button secondary" type="button" data-close>Cancel</button>
                 <button class="admin-button" id="notifySend" type="button">Send</button>
             </div>
+        </div>
+    </div>
+
+    <div class="modal" id="matchesModal" role="dialog" aria-modal="true" aria-labelledby="matchesTitle" hidden>
+        <div class="modal-content matches-modal-content">
+            <button class="close-btn" id="closeMatchesBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">AI</span>
+                <div>
+                    <h2 id="matchesTitle">Potential Matches</h2>
+                    <p>Items with confidence score above 60%</p>
+                </div>
+            </div>
+            <div id="matchesList" class="matches-list"></div>
         </div>
     </div>
 

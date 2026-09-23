@@ -1,9 +1,11 @@
 import type { RecordModel } from 'pocketbase';
 import { pb } from './pb';
 import type { Item, ItemStatus, ItemCategory, Notification } from './types';
+import type { MatchResult } from './matching';
 
 const ITEMS_COL = 'items';
 const NOTIFS_COL = 'notifications';
+const MATCHES_COL = 'matches';
 
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -160,4 +162,25 @@ export async function getNotifications(uid: string): Promise<Notification[]> {
         read: Boolean(r.read),
         createdAt: toDate(r.created) ?? new Date()
     })) as Notification[];
+}
+
+export async function saveMatch(result: MatchResult): Promise<void> {
+    await pb.collection(MATCHES_COL).create({
+        lostItemId: result.lostItem.id,
+        foundItemId: result.foundItem.id,
+        confidenceScore: result.score,
+        matchReason: `category:${result.breakdown.category} location:${result.breakdown.location} name:${result.breakdown.name} desc:${result.breakdown.description} date:${result.breakdown.date}`,
+        status: 'pending'
+    });
+}
+
+export async function matchExists(lostItemId: string, foundItemId: string): Promise<boolean> {
+    try {
+        const records = await pb.collection(MATCHES_COL).getFullList({
+            filter: pb.filter('lostItemId = {:l} && foundItemId = {:f}', { l: lostItemId, f: foundItemId })
+        });
+        return records.length > 0;
+    } catch {
+        return false;
+    }
 }
