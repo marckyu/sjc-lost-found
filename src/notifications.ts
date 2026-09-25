@@ -9,6 +9,14 @@ let allNotifs: Notification[] = [];
 
 const listEl = document.getElementById('notifList');
 
+function addAdminLink(): void {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    const li = document.getElementById('navAdminLink');
+    if (li) {
+        li.innerHTML = '<a href="admin.html">Dashboard</a>';
+    }
+}
+
 async function loadNotifications(): Promise<void> {
     if (!currentUser) return;
     try {
@@ -33,8 +41,8 @@ function renderNotifications(): void {
     if (allNotifs.length === 0) {
         listEl.innerHTML = `
             <div class="empty-state">
-                <p>Wala kang notifications pa.</p>
-                <p style="font-size: 13px; margin-top: 8px; opacity: 0.7;">Lalabas dito ang mga update kapag na-verify o na-recovered na ang iyong report.</p>
+                <p>No notifications yet.</p>
+                <p style="font-size: 13px; margin-top: 8px; opacity: 0.7;">Updates will appear here once your report is verified or marked as recovered.</p>
             </div>
         `;
         return;
@@ -107,6 +115,7 @@ onAuthChange(async (fbUser) => {
             window.location.href = 'index.html';
             return;
         }
+        addAdminLink();
         loadNotifications();
     } else {
         window.location.href = 'index.html';

@@ -1129,3 +1129,112 @@ html.is-admin .nav-links a[href="index.html"] {
     font-weight: 800;
     line-height: 1;
 }
+
+.nav-bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-right: 12px;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.nav-bell:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: scale(1.05);
+}
+
+.nav-bell svg {
+    width: 22px;
+    height: 22px;
+}
+
+.nav-bell-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: #fff;
+    background: var(--red);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+.nav-bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    transition: background 0.2s ease, transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.nav-bell:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: scale(1.05);
+}
+
+.nav-bell svg {
+    width: 20px;
+    height: 20px;
+}
+
+.nav-bell-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    color: #fff;
+    background: var(--red);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    border: 2px solid rgba(22, 101, 52, 0.92);
+}
+
+.nav-actions .user-menu {
+    display: flex;
+    align-items: center;
+}
+
+.nav-actions .user-menu-trigger {
+    padding: 4px 10px 4px 4px;
+    border-radius: 20px;
+    transition: background 0.2s ease;
+}
+
+.nav-actions .user-menu-trigger:hover {
+    background: rgba(255, 255, 255, 0.12);
+}

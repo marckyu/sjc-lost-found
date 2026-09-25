@@ -9,27 +9,6 @@ let allItems: Item[] = [];
 
 const grid = document.getElementById('itemsGrid');
 
-function getStatusBadge(status: string): { cls: string; label: string } {
-    switch (status) {
-        case 'lost':
-            return { cls: 'status-lost', label: 'Lost' };
-        case 'found':
-            return { cls: 'status-found', label: 'Found' };
-        case 'pending':
-            return { cls: 'status-pending', label: 'Pending' };
-        case 'matched':
-            return { cls: 'status-verified', label: 'Matched' };
-        case 'ownership_verification':
-            return { cls: 'status-verified', label: 'Verifying' };
-        case 'returning':
-            return { cls: 'status-verified', label: 'Returning' };
-        case 'recovered':
-            return { cls: 'status-recovered', label: 'Recovered' };
-        default:
-            return { cls: 'status-pending', label: 'Unknown' };
-    }
-}
-
 function renderItems(items: Item[]): void {
     if (!grid) return;
 
@@ -40,15 +19,33 @@ function renderItems(items: Item[]): void {
 
     grid.innerHTML = items
         .map(item => {
-            const badge = item.recovered
-                ? { cls: 'status-recovered', label: 'Recovered' }
-                : getStatusBadge(item.status);
-            const verifiedBadge = item.verified && !item.recovered
-                ? '<span class="verified-badge">✓ Verified</span>'
-                : '';
-            const claimBtn = item.verified && !item.recovered
-                ? `<button type="button" class="claim-button" data-claim="${item.id}">Claim This Item</button>`
-                : '';
+            let statusClass = 'status-pending';
+            let statusText = 'Pending';
+
+            if (item.recovered) {
+                statusClass = 'status-recovered';
+                statusText = '✓ Recovered';
+            } else if (item.verified) {
+                statusClass = 'status-verified';
+                statusText = 'Verified';
+            } else if (item.status === 'lost') {
+                statusClass = 'status-lost';
+                statusText = 'Lost';
+            } else if (item.status === 'found') {
+                statusClass = 'status-found';
+                statusText = 'Found';
+            }
+
+            const verifiedBadge =
+                item.verified && !item.recovered
+                    ? '<span class="verified-badge">✓ Verified</span>'
+                    : '';
+
+            const claimBtn =
+                item.verified && !item.recovered
+                    ? `<button type="button" class="claim-button" data-claim="${item.id}">Claim This Item</button>`
+                    : '';
+
             const hasImages = item.imageUrls.length > 0;
 
             return `
@@ -68,9 +65,9 @@ function renderItems(items: Item[]): void {
                     <div class="item-info">
                         <h3>${escapeHtml(item.itemName)} ${verifiedBadge}</h3>
                         <p><strong>Location:</strong> ${escapeHtml(item.location)}</p>
-                        <p><strong>Date:</strong> ${formatDate(item.date ?? item.createdAt)}</p>
+                        <p><strong>Date:</strong> ${formatDate(item.createdAt)}</p>
                         <p><strong>Category:</strong> ${escapeHtml(item.category)}</p>
-                        <span class="item-status ${badge.cls}">${badge.label}</span>
+                        <span class="item-status ${statusClass}">${statusText}</span>
                         ${claimBtn}
                     </div>
                 </div>
@@ -85,7 +82,7 @@ function renderItems(items: Item[]): void {
                 return;
             }
             showToast(
-                `Salamat, ${currentUser.fullName}! Contact the SJC office to claim this item.`,
+                `Thank you, ${currentUser.fullName}! Please contact the SJC office to claim this item.`,
                 'success'
             );
         });
@@ -151,10 +148,15 @@ function filterItems(): void {
     const filtered = allItems.filter(item => {
         const matchSearch =
             !search ||
-            (item.itemName ?? '').toLowerCase().includes(search) ||
-            (item.description ?? '').toLowerCase().includes(search);
+            item.itemName.toLowerCase().includes(search) ||
+            item.description.toLowerCase().includes(search);
         const matchCategory = category === 'all' || item.category === category;
-        const matchStatus = status === 'all' || item.status === status;
+
+        let matchStatus = true;
+        if (status === 'lost') matchStatus = item.status === 'lost';
+        else if (status === 'found') matchStatus = item.status === 'found';
+        else if (status === 'recovered') matchStatus = item.recovered;
+
         return matchSearch && matchCategory && matchStatus;
     });
 

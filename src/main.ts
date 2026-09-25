@@ -51,16 +51,6 @@ async function loadUnreadCount(): Promise<void> {
     }
 }
 
-const BELL_HTML = `
-    <button class="nav-bell" id="navBell" type="button" aria-label="Notifications">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-        </svg>
-        <span class="nav-bell-badge" id="navBellBadge" hidden>0</span>
-    </button>
-`;
-
 function bindBell(): void {
     document.getElementById('navBell')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -75,15 +65,23 @@ function updateNavAuth(user: User | null): void {
     if (user) {
         const isAdmin = user.role === 'admin';
         navAuth.innerHTML = `
-            ${BELL_HTML}
-            <div class="user-menu" id="userMenu">
-                <button class="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
-                    <span class="user-avatar">${escapeHtml(user.fullName.charAt(0).toUpperCase())}</span>
-                    <span class="user-name">${escapeHtml(user.fullName)}</span>
+            <div class="nav-actions">
+                <button class="nav-bell" id="navBell" type="button" aria-label="Notifications">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                    </svg>
+                    <span class="nav-bell-badge" id="navBellBadge" hidden>0</span>
                 </button>
-                <div class="dropdown-menu" role="menu">
-                    ${isAdmin ? '<a href="admin.html" class="dashboard" role="menuitem">Dashboard</a>' : ''}
-                    <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
+                <div class="user-menu" id="userMenu">
+                    <button class="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+                        <span class="user-avatar">${escapeHtml(user.fullName.charAt(0).toUpperCase())}</span>
+                        <span class="user-name">${escapeHtml(user.fullName)}</span>
+                    </button>
+                    <div class="dropdown-menu" role="menu">
+                        ${isAdmin ? '<a href="admin.html" class="dashboard" role="menuitem">Dashboard</a>' : ''}
+                        <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
+                    </div>
                 </div>
             </div>
         `;
