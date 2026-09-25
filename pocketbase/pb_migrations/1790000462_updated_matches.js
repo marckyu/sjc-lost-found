@@ -1,4 +1,4 @@
-/// <reference path="../pb_data/types.d.ts" />
+  /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
   const collection = app.findCollectionByNameOrId("pbc_2541054544")
 
@@ -14,7 +14,7 @@ migrate((app) => {
     "presentable": false,
     "required": true,
     "system": false,
-    "type": "number"
+    "type": "number"    
   }))
 
   return app.save(collection)
