@@ -1,11 +1,9 @@
 import type { RecordModel } from 'pocketbase';
 import { pb } from './pb';
 import type { Item, ItemStatus, ItemCategory, Notification } from './types';
-import type { MatchResult } from './matching';
 
 const ITEMS_COL = 'items';
 const NOTIFS_COL = 'notifications';
-const MATCHES_COL = 'matches';
 
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -26,18 +24,14 @@ function itemFromRecord(r: RecordModel): Item {
         location: r.location,
         description: r.description,
         status: r.status as ItemStatus,
-        date: toDate(r.date),
         verified: r.verified ?? false,
-        verifiedAt: toDate(r.verifiedAt),
         recovered: r.recovered ?? false,
         recoveredAt: toDate(r.recoveredAt),
         recoveredBy: r.recoveredBy ?? null,
-        matchedWithItemId: r.matchedWithItemId ?? null,
-        matchedAt: toDate(r.matchedAt),
-        returnedAt: toDate(r.returnedAt),
         imageUrls: files.map(name => pb.files.getURL(r, name, { download: false })),
-        createdAt: toDate(r.created) ?? new Date()
-    };
+        createdAt: toDate(r.created) ?? new Date(),
+        verifiedAt: toDate(r.verifiedAt)
+    } as Item;
 }
 
 export async function getAllItems(): Promise<Item[]> {
@@ -115,12 +109,11 @@ export async function verifyItem(itemId: string): Promise<void> {
     });
 }
 
-export async function markAsRecovered(itemId: string, userId: string): Promise<void> {
+export async function markAsRecovered(itemId: string, adminId: string): Promise<void> {
     await pb.collection(ITEMS_COL).update(itemId, {
         recovered: true,
         recoveredAt: new Date().toISOString(),
-        recoveredBy: userId,
-        status: 'recovered'
+        recoveredBy: adminId
     });
 }
 
@@ -164,23 +157,26 @@ export async function getNotifications(uid: string): Promise<Notification[]> {
     })) as Notification[];
 }
 
-export async function saveMatch(result: MatchResult): Promise<void> {
-    await pb.collection(MATCHES_COL).create({
-        lostItemId: result.lostItem.id,
-        foundItemId: result.foundItem.id,
-        confidenceScore: result.score,
-        matchReason: `category:${result.breakdown.category} location:${result.breakdown.location} name:${result.breakdown.name} desc:${result.breakdown.description} date:${result.breakdown.date}`,
-        status: 'pending'
+export async function getUnreadCount(uid: string): Promise<number> {
+    const result = await pb.collection(NOTIFS_COL).getList(1, 1, {
+        filter: pb.filter('userId = {:uid} && read = false', { uid })
     });
+    return result.totalItems;
 }
 
-export async function matchExists(lostItemId: string, foundItemId: string): Promise<boolean> {
-    try {
-        const records = await pb.collection(MATCHES_COL).getFullList({
-            filter: pb.filter('lostItemId = {:l} && foundItemId = {:f}', { l: lostItemId, f: foundItemId })
-        });
-        return records.length > 0;
-    } catch {
-        return false;
-    }
+export async function markAsRead(notifId: string): Promise<void> {
+    await pb.collection(NOTIFS_COL).update(notifId, { read: true });
+}
+
+export async function markAllAsRead(uid: string): Promise<void> {
+    const records = await pb.collection(NOTIFS_COL).getFullList({
+        filter: pb.filter('userId = {:uid} && read = false', { uid })
+    });
+    await Promise.all(
+        records.map(r => pb.collection(NOTIFS_COL).update(r.id, { read: true }))
+    );
+}
+
+export async function deleteNotification(notifId: string): Promise<void> {
+    await pb.collection(NOTIFS_COL).delete(notifId);
 }

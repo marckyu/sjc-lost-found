@@ -1,0 +1,114 @@
+import './main';
+import { getNotifications, markAsRead, markAllAsRead, deleteNotification } from './db';
+import { onAuthChange, getCurrentUser } from './auth';
+import { showToast, escapeHtml, formatDate } from './ui';
+import type { Notification, User } from './types';
+
+let currentUser: User | null = null;
+let allNotifs: Notification[] = [];
+
+const listEl = document.getElementById('notifList');
+
+async function loadNotifications(): Promise<void> {
+    if (!currentUser) return;
+    try {
+        allNotifs = await getNotifications(currentUser.uid);
+        renderNotifications();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to load notifications.', 'error');
+    }
+}
+
+function renderNotifications(): void {
+    if (!listEl) return;
+
+    const countEl = document.getElementById('notifCount');
+    if (countEl) {
+        const unread = allNotifs.filter(n => !n.read).length;
+        const total = allNotifs.length;
+        countEl.textContent = `${total} notification${total === 1 ? '' : 's'} (${unread} unread)`;
+    }
+
+    if (allNotifs.length === 0) {
+        listEl.innerHTML = `
+            <div class="empty-state">
+                <p>Wala kang notifications pa.</p>
+                <p style="font-size: 13px; margin-top: 8px; opacity: 0.7;">Lalabas dito ang mga update kapag na-verify o na-recovered na ang iyong report.</p>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = allNotifs.map(n => `
+        <article class="notif-card ${n.read ? 'read' : 'unread'}" data-id="${n.id}">
+            <div class="notif-icon">🔔</div>
+            <div class="notif-content">
+                <p class="notif-message">${escapeHtml(n.message)}</p>
+                <small class="notif-time">${formatDate(n.createdAt)}</small>
+            </div>
+            <button class="notif-delete" data-delete="${n.id}" aria-label="Delete notification">&times;</button>
+        </article>
+    `).join('');
+
+    listEl.querySelectorAll<HTMLElement>('[data-delete]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.delete;
+            if (!id) return;
+            try {
+                await deleteNotification(id);
+                allNotifs = allNotifs.filter(n => n.id !== id);
+                renderNotifications();
+            } catch (err) {
+                console.error(err);
+                showToast('Failed to delete notification.', 'error');
+            }
+        });
+    });
+
+    listEl.querySelectorAll<HTMLElement>('.notif-card').forEach(card => {
+        card.addEventListener('click', async () => {
+            const id = card.dataset.id;
+            if (!id) return;
+            const notif = allNotifs.find(n => n.id === id);
+            if (!notif || notif.read) return;
+
+            try {
+                await markAsRead(id);
+                notif.read = true;
+                card.classList.remove('unread');
+                card.classList.add('read');
+                renderNotifications();
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    });
+}
+
+document.getElementById('markAllReadBtn')?.addEventListener('click', async () => {
+    if (!currentUser || allNotifs.length === 0) return;
+    try {
+        await markAllAsRead(currentUser.uid);
+        allNotifs.forEach(n => { n.read = true; });
+        renderNotifications();
+        showToast('All notifications marked as read.', 'success');
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to mark all as read.', 'error');
+    }
+});
+
+onAuthChange(async (fbUser) => {
+    if (fbUser) {
+        currentUser = await getCurrentUser();
+        if (!currentUser) {
+            window.location.href = 'index.html';
+            return;
+        }
+        loadNotifications();
+    } else {
+        window.location.href = 'index.html';
+    }
+});

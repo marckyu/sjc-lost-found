@@ -1,26 +1,10 @@
-import './main';
-import './pwa';
-import { getCurrentUser } from './auth';
-import {
-    watchItems,
-    verifyItem,
-    deleteItem,
-    toggleItemStatus,
-    sendNotification,
-    markAsRecovered,
-    saveMatch,
-    matchExists
-} from './db';
+import { getCurrentUser, signOut } from './auth';
+import { watchItems, verifyItem, deleteItem, toggleItemStatus, sendNotification, markAsRecovered, getUnreadCount } from './db';
 import { showToast, escapeHtml, formatDate } from './ui';
-import { findMatches, MATCH_THRESHOLD } from './matching';
-import type { MatchResult } from './matching';
 import type { Item, User } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
-let tableSearch = '';
-let statusFilter = 'all';
-let computedMatches: MatchResult[] = [];
 
 const itemsList = document.getElementById('itemsList');
 
@@ -39,28 +23,43 @@ function renderStats(): void {
 }
 
 function getFilteredItems(): Item[] {
-    const q = tableSearch.toLowerCase();
-    return allItems.filter(item => {
-        const matchesSearch = !q ||
-            (item.itemName ?? '').toLowerCase().includes(q) ||
-            (item.userName ?? '').toLowerCase().includes(q) ||
-            (item.userEmail ?? '').toLowerCase().includes(q);
-        const matchesStatus =
-            statusFilter === 'all' ||
-            (statusFilter === 'recovered' && item.recovered) ||
-            (statusFilter === 'verified' && item.verified && !item.recovered) ||
-            (statusFilter === 'pending' && !item.verified && !item.recovered) ||
-            item.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const searchEl = document.getElementById('tableSearch') as HTMLInputElement | null;
+    const filterEl = document.getElementById('statusFilter') as HTMLSelectElement | null;
+    const search = searchEl?.value.toLowerCase().trim() || '';
+    const filter = filterEl?.value || 'all';
+
+    let filtered = allItems;
+
+    if (search) {
+        filtered = filtered.filter(i =>
+            i.itemName.toLowerCase().includes(search) ||
+            i.userName.toLowerCase().includes(search) ||
+            i.userEmail.toLowerCase().includes(search) ||
+            i.location.toLowerCase().includes(search)
+        );
+    }
+
+    if (filter === 'lost') {
+        filtered = filtered.filter(i => i.status === 'lost' && !i.recovered);
+    } else if (filter === 'found') {
+        filtered = filtered.filter(i => i.status === 'found' && !i.recovered);
+    } else if (filter === 'verified') {
+        filtered = filtered.filter(i => i.verified && !i.recovered);
+    } else if (filter === 'pending') {
+        filtered = filtered.filter(i => !i.verified && !i.recovered);
+    } else if (filter === 'recovered') {
+        filtered = filtered.filter(i => i.recovered);
+    }
+
+    return filtered;
 }
 
 function renderTable(): void {
     if (!itemsList) return;
 
-    const items = getFilteredItems();
+    const filtered = getFilteredItems();
 
-    if (items.length === 0) {
+    if (filtered.length === 0) {
         itemsList.innerHTML = '<div class="empty-state"><p>No items found.</p></div>';
         return;
     }
@@ -83,13 +82,13 @@ function renderTable(): void {
             <tbody>
     `;
 
-    items.forEach(item => {
+    filtered.forEach(item => {
         let statusClass = 'status-pending';
         let statusText = 'Pending';
 
         if (item.recovered) {
             statusClass = 'status-recovered';
-            statusText = 'Recovered';
+            statusText = '✓ Recovered';
         } else if (item.verified) {
             statusClass = 'status-verified';
             statusText = 'Verified';
@@ -106,6 +105,20 @@ function renderTable(): void {
                 ? `<img class="image-thumb" src="${item.imageUrls[0]}" alt="Item" data-image-src="${item.imageUrls[0]}">`
                 : '—';
 
+        let actionsHtml = '';
+
+        if (!item.recovered) {
+            if (!item.verified) {
+                actionsHtml += `<button class="action-btn verify" data-action="verify" data-id="${item.id}">Verify</button>`;
+            }
+            if (item.verified) {
+                actionsHtml += `<button class="action-btn recover" data-action="recover" data-id="${item.id}">Recovered</button>`;
+            }
+            actionsHtml += `<button class="action-btn notify" data-action="notify" data-id="${item.id}">Notify</button>`;
+            actionsHtml += `<button class="action-btn toggle" data-action="toggle" data-id="${item.id}">Toggle</button>`;
+        }
+        actionsHtml += `<button class="action-btn delete" data-action="delete" data-id="${item.id}">Delete</button>`;
+
         html += `
             <tr>
                 <td data-label="Item">${escapeHtml(item.itemName)}</td>
@@ -116,13 +129,7 @@ function renderTable(): void {
                 <td data-label="By">${escapeHtml(item.userName)}</td>
                 <td data-label="Contact"><a href="mailto:${escapeHtml(item.userEmail)}" class="contact-link">${escapeHtml(item.userEmail)}</a></td>
                 <td data-label="Image">${imageCell}</td>
-                <td data-label="Actions">
-                    ${!item.verified && !item.recovered ? `<button class="action-btn verify" data-action="verify" data-id="${item.id}">Verify</button>` : ''}
-                    ${item.verified && !item.recovered ? `<button class="action-btn recover" data-action="recover" data-id="${item.id}">Mark Recovered</button>` : ''}
-                    <button class="action-btn notify" data-action="notify" data-id="${item.id}">Notify</button>
-                    ${!item.recovered ? `<button class="action-btn toggle" data-action="toggle" data-id="${item.id}">Toggle</button>` : ''}
-                    <button class="action-btn delete" data-action="delete" data-id="${item.id}">Delete</button>
-                </td>
+                <td data-label="Actions">${actionsHtml}</td>
             </tr>
         `;
     });
@@ -149,19 +156,30 @@ function bindActions(): void {
                 if (!confirm(`Verify "${item.itemName}" as a legitimate report?`)) return;
                 try {
                     await verifyItem(id);
+                    await sendNotification(
+                        item.userId,
+                        item.id,
+                        `Good news! Your report "${item.itemName}" has been verified by the admin.`
+                    );
                     showToast(`"${item.itemName}" verified successfully.`, 'success');
                 } catch (err) {
                     console.error(err);
                     showToast('Failed to verify item.', 'error');
                 }
             } else if (action === 'recover') {
-                if (!confirm(`Mark "${item.itemName}" as recovered?`)) return;
+                if (!confirm(`Mark "${item.itemName}" as RECOVERED? This means the item has been returned to its owner.`)) return;
+                if (!currentUser) return;
                 try {
-                    await markAsRecovered(id, currentUser!.uid);
+                    await markAsRecovered(id, currentUser.uid);
+                    await sendNotification(
+                        item.userId,
+                        item.id,
+                        `Great news! "${item.itemName}" has been marked as recovered. Salamat sa pag-report!`
+                    );
                     showToast(`"${item.itemName}" marked as recovered.`, 'success');
                 } catch (err) {
                     console.error(err);
-                    showToast('Failed to mark as recovered.', 'error');
+                    showToast('Failed to mark item as recovered.', 'error');
                 }
             } else if (action === 'toggle') {
                 try {
@@ -192,113 +210,6 @@ function bindActions(): void {
             openImageModal(src);
         });
     });
-}
-
-async function runMatching(): Promise<void> {
-    const btn = document.getElementById('findMatchesBtn') as HTMLButtonElement | null;
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Scanning...';
-    }
-
-    try {
-        computedMatches = findMatches(allItems);
-        renderMatches();
-        openMatchesModal();
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to run matching.', 'error');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Find Matches';
-        }
-    }
-}
-
-function renderMatches(): void {
-    const list = document.getElementById('matchesList');
-    if (!list) return;
-
-    if (computedMatches.length === 0) {
-        list.innerHTML = `<div class="empty-state"><p>No matches found above ${MATCH_THRESHOLD}% threshold.</p></div>`;
-        return;
-    }
-
-    list.innerHTML = computedMatches.map((m, i) => `
-        <div class="match-card" data-match-index="${i}">
-            <div class="match-score">
-                <strong>${m.score}%</strong>
-                <small>confidence</small>
-            </div>
-            <div class="match-items">
-                <div class="match-item">
-                    <span class="match-label lost">LOST</span>
-                    <strong>${escapeHtml(m.lostItem.itemName)}</strong>
-                    <small>${escapeHtml(m.lostItem.location)} • ${escapeHtml(m.lostItem.userName)}</small>
-                </div>
-                <div class="match-item">
-                    <span class="match-label found">FOUND</span>
-                    <strong>${escapeHtml(m.foundItem.itemName)}</strong>
-                    <small>${escapeHtml(m.foundItem.location)} • ${escapeHtml(m.foundItem.userName)}</small>
-                </div>
-                <div class="match-breakdown">
-                    Category: ${m.breakdown.category}/30 •
-                    Location: ${m.breakdown.location}/20 •
-                    Name: ${m.breakdown.name}/25 •
-                    Description: ${m.breakdown.description}/15 •
-                    Date: ${m.breakdown.date}/10
-                </div>
-            </div>
-            <div class="match-actions">
-                <button class="admin-button" data-save-match="${i}">Confirm Match</button>
-            </div>
-        </div>
-    `).join('');
-
-    list.querySelectorAll<HTMLButtonElement>('[data-save-match]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const idx = Number(btn.dataset.saveMatch);
-            const match = computedMatches[idx];
-            if (!match) return;
-
-            btn.disabled = true;
-            btn.textContent = 'Saving...';
-
-            try {
-                const exists = await matchExists(match.lostItem.id, match.foundItem.id);
-                if (exists) {
-                    showToast('Match already exists.', 'warning');
-                    btn.disabled = false;
-                    btn.textContent = 'Confirm Match';
-                    return;
-                }
-
-                await saveMatch(match);
-                showToast(`Match saved (${match.score}%).`, 'success');
-                btn.textContent = 'Saved ✓';
-            } catch (err) {
-                console.error(err);
-                showToast('Failed to save match.', 'error');
-                btn.disabled = false;
-                btn.textContent = 'Confirm Match';
-            }
-        });
-    });
-}
-
-function openMatchesModal(): void {
-    const modal = document.getElementById('matchesModal');
-    if (!modal) return;
-    modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-}
-
-function closeMatchesModal(): void {
-    const modal = document.getElementById('matchesModal');
-    if (!modal) return;
-    modal.hidden = true;
-    document.body.style.overflow = '';
 }
 
 function openNotifyModal(item: Item): void {
@@ -415,6 +326,64 @@ async function handleClearAll(): Promise<void> {
     }
 }
 
+async function loadUnreadCount(): Promise<void> {
+    if (!currentUser) return;
+    try {
+        const count = await getUnreadCount(currentUser.uid);
+        const badge = document.getElementById('navBellBadge');
+        if (badge) {
+            badge.textContent = String(count);
+            badge.hidden = count === 0;
+        }
+    } catch (err) {
+        console.error('Failed to load notification count:', err);
+    }
+}
+
+function renderAdminNav(): void {
+    const navAuth = document.getElementById('navAuth');
+    if (!navAuth || !currentUser) return;
+
+    navAuth.innerHTML = `
+        <button class="nav-bell" id="navBell" type="button" aria-label="Notifications">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+            </svg>
+            <span class="nav-bell-badge" id="navBellBadge" hidden>0</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+            <button class="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+                <span class="user-avatar">${escapeHtml(currentUser.fullName.charAt(0).toUpperCase())}</span>
+                <span class="user-name">${escapeHtml(currentUser.fullName)}</span>
+            </button>
+            <div class="dropdown-menu" role="menu">
+                <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('navBell')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = 'notifications.html';
+    });
+
+    const userMenu = document.getElementById('userMenu');
+    const trigger = userMenu?.querySelector('.user-menu-trigger') as HTMLButtonElement | null;
+    trigger?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userMenu!.classList.toggle('active');
+        trigger.setAttribute('aria-expanded', String(userMenu!.classList.contains('active')));
+    });
+
+    navAuth.querySelector('[data-signout]')?.addEventListener('click', async () => {
+        await signOut();
+        window.location.href = 'index.html';
+    });
+
+    loadUnreadCount();
+}
+
 function bindUI(): void {
     document.getElementById('refreshBtn')?.addEventListener('click', () => {
         showToast('List refreshed.', 'info');
@@ -422,23 +391,15 @@ function bindUI(): void {
 
     document.getElementById('clearBtn')?.addEventListener('click', handleClearAll);
 
-    document.getElementById('findMatchesBtn')?.addEventListener('click', runMatching);
-
-    document.getElementById('closeMatchesBtn')?.addEventListener('click', closeMatchesModal);
-
-    document.getElementById('tableSearch')?.addEventListener('input', (e) => {
-        tableSearch = (e.target as HTMLInputElement).value;
-        renderTable();
-    });
-
-    document.getElementById('statusFilter')?.addEventListener('change', (e) => {
-        statusFilter = (e.target as HTMLSelectElement).value;
-        renderTable();
-    });
-
     document.getElementById('notifySend')?.addEventListener('click', handleSendNotification);
 
     document.getElementById('notifyMessage')?.addEventListener('input', updateCharCounter);
+
+    const searchInput = document.getElementById('tableSearch') as HTMLInputElement | null;
+    searchInput?.addEventListener('input', () => renderTable());
+
+    const statusFilter = document.getElementById('statusFilter') as HTMLSelectElement | null;
+    statusFilter?.addEventListener('change', () => renderTable());
 
     document.querySelectorAll<HTMLElement>('[data-close]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -505,6 +466,11 @@ function bindUI(): void {
             });
         });
     }
+
+    document.addEventListener('click', () => {
+        const userMenu = document.getElementById('userMenu');
+        if (userMenu) userMenu.classList.remove('active');
+    });
 }
 
 async function initializeAdmin(): Promise<void> {
@@ -522,6 +488,7 @@ async function initializeAdmin(): Promise<void> {
         }
 
         currentUser = profile;
+        renderAdminNav();
         bindUI();
 
         watchItems(items => {

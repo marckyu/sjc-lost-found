@@ -2,6 +2,7 @@ import './pb';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile, signOut, signIn, signUp } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
+import { getUnreadCount } from './db';
 import type { User } from './types';
 
 let currentUser: User | null = null;
@@ -12,7 +13,11 @@ function isProtectedPage(): boolean {
 
 function applyRoleUI(user: User | null): void {
     const hideReport = user?.role === 'admin';
-    document.querySelectorAll<HTMLElement>('a[href="report.html"]').forEach(link => {
+    document.querySelectorAll<HTMLElement>('.nav-links a[href="report.html"]').forEach(link => {
+        const target = (link.closest('li') as HTMLElement | null) ?? link;
+        target.style.display = hideReport ? 'none' : '';
+    });
+    document.querySelectorAll<HTMLElement>('.nav-links a[href="index.html"]').forEach(link => {
         const target = (link.closest('li') as HTMLElement | null) ?? link;
         target.style.display = hideReport ? 'none' : '';
     });
@@ -22,7 +27,8 @@ function hideReportLinksIfCachedAdmin(): void {
     if (!pb.authStore.isValid) return;
     const rec = pb.authStore.record;
     if (rec?.role === 'admin') {
-        document.querySelectorAll<HTMLElement>('a[href="report.html"]').forEach(link => {
+        document.documentElement.classList.add('is-admin');
+        document.querySelectorAll<HTMLElement>('.nav-links a[href="report.html"], .nav-links a[href="index.html"]').forEach(link => {
             const target = (link.closest('li') as HTMLElement | null) ?? link;
             target.style.display = 'none';
         });
@@ -31,6 +37,37 @@ function hideReportLinksIfCachedAdmin(): void {
 
 hideReportLinksIfCachedAdmin();
 
+async function loadUnreadCount(): Promise<void> {
+    if (!currentUser) return;
+    try {
+        const count = await getUnreadCount(currentUser.uid);
+        const badge = document.getElementById('navBellBadge');
+        if (badge) {
+            badge.textContent = String(count);
+            badge.hidden = count === 0;
+        }
+    } catch (err) {
+        console.error('Failed to load notification count:', err);
+    }
+}
+
+const BELL_HTML = `
+    <button class="nav-bell" id="navBell" type="button" aria-label="Notifications">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+        </svg>
+        <span class="nav-bell-badge" id="navBellBadge" hidden>0</span>
+    </button>
+`;
+
+function bindBell(): void {
+    document.getElementById('navBell')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.location.href = 'notifications.html';
+    });
+}
+
 function updateNavAuth(user: User | null): void {
     const navAuth = document.getElementById('navAuth');
     if (!navAuth) return;
@@ -38,6 +75,7 @@ function updateNavAuth(user: User | null): void {
     if (user) {
         const isAdmin = user.role === 'admin';
         navAuth.innerHTML = `
+            ${BELL_HTML}
             <div class="user-menu" id="userMenu">
                 <button class="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
                     <span class="user-avatar">${escapeHtml(user.fullName.charAt(0).toUpperCase())}</span>
@@ -49,6 +87,8 @@ function updateNavAuth(user: User | null): void {
                 </div>
             </div>
         `;
+
+        bindBell();
 
         const userMenu = document.getElementById('userMenu')!;
         const trigger = userMenu.querySelector('.user-menu-trigger') as HTMLButtonElement;
@@ -71,6 +111,7 @@ function updateNavAuth(user: User | null): void {
         });
 
         applyRoleUI(user);
+        loadUnreadCount();
     } else {
         navAuth.innerHTML = `
             <button class="nav-button nav-button-outline" type="button" data-open-auth="signin">Sign In</button>
