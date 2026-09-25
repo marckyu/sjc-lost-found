@@ -51,8 +51,11 @@ function renderItems(items: Item[]): void {
                     ? '<span class="verified-badge">✓ Verified</span>'
                     : '';
 
+            const canClaim =
+                item.verified && !item.recovered && item.status === 'found';
+
             let claimBtn = '';
-            if (item.verified && !item.recovered) {
+            if (canClaim) {
                 if (hasApprovedClaim(item.id)) {
                     claimBtn = `<div class="claim-status approved">✓ Claim Approved — Contact SJC Office</div>`;
                 } else if (hasPendingClaim(item.id)) {
