@@ -85,6 +85,20 @@
             </article>
         </section>
 
+        <section class="admin-panel claims-panel">
+            <div class="panel-heading">
+                <div>
+                    <p>OWNERSHIP VERIFICATION</p>
+                    <h2>Claim Requests <span class="claims-count" id="claimsCount">0</span></h2>
+                </div>
+            </div>
+            <div id="claimsList" class="claims-list">
+                <div class="empty-state">
+                    <p>No claim requests yet.</p>
+                </div>
+            </div>
+        </section>
+
         <section class="admin-panel">
             <div class="panel-heading">
                 <div>
@@ -92,7 +106,6 @@
                     <h2>Manage Items</h2>
                 </div>
                 <div class="admin-actions">
-                    <button class="admin-button" id="findMatchesBtn" type="button">Find Matches</button>
                     <button class="admin-button secondary" id="refreshBtn" type="button">Refresh</button>
                     <button class="admin-button danger" id="clearBtn" type="button">Clear All</button>
                 </div>
@@ -110,8 +123,8 @@
                     <option value="all">All Status</option>
                     <option value="lost">Lost</option>
                     <option value="found">Found</option>
-                    <option value="verified">Verified</option>
                     <option value="pending">Pending</option>
+                    <option value="verified">Verified</option>
                     <option value="recovered">Recovered</option>
                 </select>
             </div>
@@ -136,6 +149,28 @@
             <div class="confirm-actions">
                 <button class="admin-button secondary" id="confirmCancel" type="button">Cancel</button>
                 <button class="admin-button" id="confirmOk" type="button">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="reviewModal" role="dialog" aria-modal="true" aria-labelledby="reviewTitle" hidden>
+        <div class="modal-content">
+            <button class="close-btn" type="button" data-close aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">SJC</span>
+                <div>
+                    <h2 id="reviewTitle">Review Claim</h2>
+                    <p>Approve or reject this claim request.</p>
+                </div>
+            </div>
+            <div class="review-claim-info" id="reviewClaimInfo"></div>
+            <div class="form-group">
+                <label for="reviewNote">Admin Note (optional)</label>
+                <textarea id="reviewNote" placeholder="Add a note for the user..." maxlength="500"></textarea>
+            </div>
+            <div class="confirm-actions">
+                <button class="admin-button danger" id="rejectBtn" type="button">Reject</button>
+                <button class="admin-button" id="approveBtn" type="button">Approve</button>
             </div>
         </div>
     </div>
@@ -167,20 +202,6 @@
                 <button class="admin-button secondary" type="button" data-close>Cancel</button>
                 <button class="admin-button" id="notifySend" type="button">Send</button>
             </div>
-        </div>
-    </div>
-
-    <div class="modal" id="matchesModal" role="dialog" aria-modal="true" aria-labelledby="matchesTitle" hidden>
-        <div class="modal-content matches-modal-content">
-            <button class="close-btn" id="closeMatchesBtn" type="button" aria-label="Close dialog">&times;</button>
-            <div class="modal-intro">
-                <span class="modal-logo">AI</span>
-                <div>
-                    <h2 id="matchesTitle">Potential Matches</h2>
-                    <p>Items with confidence score above 60%</p>
-                </div>
-            </div>
-            <div id="matchesList" class="matches-list"></div>
         </div>
     </div>
 

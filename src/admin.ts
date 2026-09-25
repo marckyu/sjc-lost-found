@@ -1,12 +1,20 @@
 import { getCurrentUser, signOut } from './auth';
-import { watchItems, verifyItem, deleteItem, toggleItemStatus, sendNotification, markAsRecovered, getUnreadCount } from './db';
+import {
+    watchItems, verifyItem, deleteItem, toggleItemStatus,
+    sendNotification, markAsRecovered, watchNotifications,
+    watchClaims, approveClaim, rejectClaim
+} from './db';
 import { showToast, escapeHtml, formatDate } from './ui';
-import type { Item, User } from './types';
+import type { Item, User, Notification, Claim } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
+let allClaims: Claim[] = [];
+let notifUnsubscribe: (() => void) | null = null;
+let activeClaim: Claim | null = null;
 
 const itemsList = document.getElementById('itemsList');
+const claimsList = document.getElementById('claimsList');
 
 function renderStats(): void {
     const total = document.getElementById('totalItems');
@@ -20,6 +28,187 @@ function renderStats(): void {
     if (found) found.textContent = String(allItems.filter(i => i.status === 'found' && !i.recovered).length);
     if (verified) verified.textContent = String(allItems.filter(i => i.verified && !i.recovered).length);
     if (recovered) recovered.textContent = String(allItems.filter(i => i.recovered).length);
+}
+
+function renderClaims(): void {
+    if (!claimsList) return;
+
+    const pending = allClaims.filter(c => c.status === 'pending');
+    const countEl = document.getElementById('claimsCount');
+    if (countEl) countEl.textContent = String(pending.length);
+
+    if (allClaims.length === 0) {
+        claimsList.innerHTML = '<div class="empty-state"><p>No claim requests yet.</p></div>';
+        return;
+    }
+
+    claimsList.innerHTML = allClaims.map(claim => {
+        let statusClass = 'claim-status-pending';
+        let statusText = 'Pending';
+
+        if (claim.status === 'approved') {
+            statusClass = 'claim-status-approved';
+            statusText = '✓ Approved';
+        } else if (claim.status === 'rejected') {
+            statusClass = 'claim-status-rejected';
+            statusText = '✗ Rejected';
+        }
+
+        const item = allItems.find(i => i.id === claim.itemId);
+        const itemThumb = item && item.imageUrls.length > 0
+            ? `<img class="claim-thumb" src="${item.imageUrls[0]}" alt="Item">`
+            : `<div class="claim-thumb-placeholder">?</div>`;
+
+        let actionsHtml = '';
+        if (claim.status === 'pending') {
+            actionsHtml = `
+                <button class="admin-button" data-claim-action="review" data-id="${claim.id}">Review</button>
+            `;
+        }
+
+        return `
+            <article class="claim-card">
+                ${itemThumb}
+                <div class="claim-card-body">
+                    <div class="claim-card-head">
+                        <div>
+                            <strong class="claim-item-name">${escapeHtml(claim.itemName)}</strong>
+                            <span class="claim-status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <small class="claim-date">${formatDate(claim.createdAt)}</small>
+                    </div>
+                    <div class="claim-card-grid">
+                        <div>
+                            <span class="claim-label">Claimant</span>
+                            <span class="claim-value">${escapeHtml(claim.userName)}</span>
+                        </div>
+                        <div>
+                            <span class="claim-label">Contact</span>
+                            <span class="claim-value">${escapeHtml(claim.contactNumber)}</span>
+                        </div>
+                        <div>
+                            <span class="claim-label">Email</span>
+                            <span class="claim-value">${escapeHtml(claim.userEmail)}</span>
+                        </div>
+                    </div>
+                    <div class="claim-proof">
+                        <span class="claim-label">Proof of Ownership</span>
+                        <p>${escapeHtml(claim.proof)}</p>
+                    </div>
+                    ${claim.adminNote ? `<div class="claim-admin-note"><strong>Admin Note:</strong> ${escapeHtml(claim.adminNote)}</div>` : ''}
+                    <div class="claim-actions">${actionsHtml}</div>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    claimsList.querySelectorAll<HTMLButtonElement>('[data-claim-action="review"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            if (!id) return;
+            const claim = allClaims.find(c => c.id === id);
+            if (!claim) return;
+            openReviewModal(claim);
+        });
+    });
+}
+
+function openReviewModal(claim: Claim): void {
+    const modal = document.getElementById('reviewModal');
+    const info = document.getElementById('reviewClaimInfo');
+    const noteInput = document.getElementById('reviewNote') as HTMLTextAreaElement | null;
+    if (!modal || !info) return;
+
+    activeClaim = claim;
+    if (noteInput) noteInput.value = '';
+
+    info.innerHTML = `
+        <div class="review-row">
+            <span class="review-label">Item</span>
+            <span class="review-value">${escapeHtml(claim.itemName)}</span>
+        </div>
+        <div class="review-row">
+            <span class="review-label">Claimant</span>
+            <span class="review-value">${escapeHtml(claim.userName)}</span>
+        </div>
+        <div class="review-row">
+            <span class="review-label">Contact</span>
+            <span class="review-value">${escapeHtml(claim.contactNumber)}</span>
+        </div>
+        <div class="review-row">
+            <span class="review-label">Proof</span>
+            <span class="review-value">${escapeHtml(claim.proof)}</span>
+        </div>
+    `;
+
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function closeReviewModal(): void {
+    const modal = document.getElementById('reviewModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    activeClaim = null;
+}
+
+async function handleApprove(): Promise<void> {
+    if (!activeClaim || !currentUser) return;
+    const noteInput = document.getElementById('reviewNote') as HTMLTextAreaElement | null;
+    const note = noteInput?.value.trim() || '';
+
+    const approveBtn = document.getElementById('approveBtn') as HTMLButtonElement | null;
+    if (approveBtn) approveBtn.disabled = true;
+
+    try {
+        await approveClaim(activeClaim.id, currentUser.uid, note);
+
+        const item = allItems.find(i => i.id === activeClaim!.itemId);
+        await sendNotification(
+            activeClaim.userId,
+            activeClaim.itemId,
+            `Great news! Your claim for "${activeClaim.itemName}" has been APPROVED. Please visit the SJC office to claim your item.${note ? ' Note: ' + note : ''}`
+        );
+
+        if (item) {
+            await markAsRecovered(item.id, currentUser.uid);
+        }
+
+        showToast('Claim approved successfully.', 'success');
+        closeReviewModal();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to approve claim.', 'error');
+    } finally {
+        if (approveBtn) approveBtn.disabled = false;
+    }
+}
+
+async function handleReject(): Promise<void> {
+    if (!activeClaim || !currentUser) return;
+    const noteInput = document.getElementById('reviewNote') as HTMLTextAreaElement | null;
+    const note = noteInput?.value.trim() || '';
+
+    const rejectBtn = document.getElementById('rejectBtn') as HTMLButtonElement | null;
+    if (rejectBtn) rejectBtn.disabled = true;
+
+    try {
+        await rejectClaim(activeClaim.id, currentUser.uid, note);
+        await sendNotification(
+            activeClaim.userId,
+            activeClaim.itemId,
+            `We're sorry, but your claim for "${activeClaim.itemName}" was not approved.${note ? ' Reason: ' + note : ''}`
+        );
+
+        showToast('Claim rejected.', 'info');
+        closeReviewModal();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to reject claim.', 'error');
+    } finally {
+        if (rejectBtn) rejectBtn.disabled = false;
+    }
 }
 
 function getFilteredItems(): Item[] {
@@ -326,17 +515,12 @@ async function handleClearAll(): Promise<void> {
     }
 }
 
-async function loadUnreadCount(): Promise<void> {
-    if (!currentUser) return;
-    try {
-        const count = await getUnreadCount(currentUser.uid);
-        const badge = document.getElementById('navBellBadge');
-        if (badge) {
-            badge.textContent = String(count);
-            badge.hidden = count === 0;
-        }
-    } catch (err) {
-        console.error('Failed to load notification count:', err);
+function updateBellBadge(notifs: Notification[]): void {
+    const unread = notifs.filter(n => !n.read).length;
+    const badge = document.getElementById('navBellBadge');
+    if (badge) {
+        badge.textContent = String(unread);
+        badge.hidden = unread === 0;
     }
 }
 
@@ -382,8 +566,6 @@ function renderAdminNav(): void {
         await signOut();
         window.location.href = 'index.html';
     });
-
-    loadUnreadCount();
 }
 
 function bindUI(): void {
@@ -394,8 +576,10 @@ function bindUI(): void {
     document.getElementById('clearBtn')?.addEventListener('click', handleClearAll);
 
     document.getElementById('notifySend')?.addEventListener('click', handleSendNotification);
-
     document.getElementById('notifyMessage')?.addEventListener('input', updateCharCounter);
+
+    document.getElementById('approveBtn')?.addEventListener('click', handleApprove);
+    document.getElementById('rejectBtn')?.addEventListener('click', handleReject);
 
     const searchInput = document.getElementById('tableSearch') as HTMLInputElement | null;
     searchInput?.addEventListener('input', () => renderTable());
@@ -493,10 +677,20 @@ async function initializeAdmin(): Promise<void> {
         renderAdminNav();
         bindUI();
 
+        notifUnsubscribe = watchNotifications(currentUser.uid, (notifs) => {
+            updateBellBadge(notifs);
+        });
+
         watchItems(items => {
             allItems = items;
             renderStats();
             renderTable();
+            renderClaims();
+        });
+
+        watchClaims(claims => {
+            allClaims = claims;
+            renderClaims();
         });
     } catch (err) {
         console.error('[admin] Error:', err);

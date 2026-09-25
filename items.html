@@ -79,6 +79,7 @@
                 <option value="all">All Status</option>
                 <option value="lost">Lost</option>
                 <option value="found">Found</option>
+                <option value="recovered">Recovered</option>
             </select>
         </section>
 
@@ -86,6 +87,33 @@
     </main>
 
     <footer><p>&copy; 2026 SJC Campus Lost &amp; Found. All rights reserved.</p></footer>
+
+    <div class="modal" id="claimModal" role="dialog" aria-modal="true" aria-labelledby="claimTitle" hidden>
+        <div class="modal-content claim-modal-content">
+            <button class="close-btn" id="closeClaimBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">SJC</span>
+                <div>
+                    <h2 id="claimTitle">Claim This Item</h2>
+                    <p id="claimSubtitle">Provide proof of ownership to claim this item.</p>
+                </div>
+            </div>
+            <div class="claim-item-preview" id="claimItemPreview"></div>
+            <form id="claimForm" class="auth-form" novalidate>
+                <div class="form-group">
+                    <label for="claimContact">Contact Number *</label>
+                    <input id="claimContact" type="tel" placeholder="e.g., 09171234567" required>
+                    <small class="guide">Para makontak ka ng admin</small>
+                </div>
+                <div class="form-group">
+                    <label for="claimProof">Proof of Ownership *</label>
+                    <textarea id="claimProof" placeholder="Describe specific details about the item — color, marks, contents, when/where you lost it, etc." required></textarea>
+                    <small class="guide">Ilarawan ang detalye na ikaw lang ang nakakaalam</small>
+                </div>
+                <button class="submit-button" type="submit">Submit Claim</button>
+            </form>
+        </div>
+    </div>
 
     <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
         <div class="modal-content">

@@ -1238,3 +1238,118 @@ html.is-admin .nav-links a[href="index.html"] {
 .nav-actions .user-menu-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+.claim-modal-content {
+    width: min(520px, 100%);
+}
+
+.claim-item-preview {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #f8fdfa;
+    border: 1px solid #dcfce7;
+}
+
+.claim-item-preview img {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.claim-preview-placeholder {
+    width: 60px;
+    height: 60px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    color: var(--green-800);
+    font-size: 24px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.claim-preview-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.claim-preview-info strong {
+    color: var(--green-900);
+    font-size: 15px;
+    font-weight: 800;
+    word-break: break-word;
+}
+
+.claim-preview-info span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+#claimForm textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #bbd7c4;
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 110px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#claimForm textarea:focus {
+    border-color: var(--green-800);
+    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
+}
+
+#claimForm input[type="tel"] {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #bbd7c4;
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#claimForm input[type="tel"]:focus {
+    border-color: var(--green-800);
+    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
+}
+
+.claim-status {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.claim-status.pending {
+    color: #b45309;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+}
+
+.claim-status.approved {
+    color: #047857;
+    background: #d1fae5;
+    border: 1px solid #a7f3d0;
+}   

@@ -1405,3 +1405,248 @@ html.is-admin .nav-links a[href="index.html"] {
 .nav-actions .user-menu-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+.claims-panel {
+    margin-bottom: 25px;
+}
+
+.claims-count {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 14px;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
+.claims-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.claim-card {
+    display: flex;
+    gap: 16px;
+    padding: 18px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-left: 4px solid #f59e0b;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.claim-thumb {
+    width: 70px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #dcfce7;
+    flex-shrink: 0;
+}
+
+.claim-thumb-placeholder {
+    width: 70px;
+    height: 70px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    color: var(--green-800);
+    font-size: 26px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.claim-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.claim-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.claim-item-name {
+    color: var(--green-900);
+    font-size: 16px;
+    font-weight: 800;
+    margin-right: 8px;
+}
+
+.claim-status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.claim-status-pending {
+    color: #b45309;
+    background: #fef3c7;
+}
+
+.claim-status-approved {
+    color: #047857;
+    background: #d1fae5;
+}
+
+.claim-status-rejected {
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
+.claim-date {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.claim-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.claim-label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.claim-value {
+    color: #1e293b;
+    font-size: 13px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.claim-proof {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: #f8fdfa;
+    border: 1px solid #e5f5ec;
+}
+
+.claim-proof p {
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.claim-admin-note {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #fef9c3;
+    color: #713f12;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.claim-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.review-claim-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 14px;
+    border-radius: 10px;
+    background: #f8fdfa;
+    border: 1px solid #dcfce7;
+}
+
+.review-row {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.review-label {
+    flex-shrink: 0;
+    width: 90px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.review-value {
+    color: #1e293b;
+    font-weight: 600;
+    word-break: break-word;
+    flex: 1;
+}
+
+#reviewNote {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #bbd7c4;
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 80px;
+}
+
+#reviewNote:focus {
+    border-color: var(--green-800);
+    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
+}
+
+@media (max-width: 700px) {
+    .claim-card {
+        flex-direction: column;
+    }
+
+    .claim-thumb,
+    .claim-thumb-placeholder {
+        width: 100%;
+        height: 140px;
+    }
+
+    .claim-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .claim-actions {
+        justify-content: stretch;
+    }
+
+    .claim-actions .admin-button {
+        flex: 1;
+    }
+
+    .review-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .review-label {
+        width: auto;
+    }
+}

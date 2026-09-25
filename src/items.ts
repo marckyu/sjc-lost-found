@@ -1,13 +1,23 @@
 import './main';
-import { watchItems } from './db';
+import { watchItems, createClaim, getClaimsByUser } from './db';
 import { onAuthChange, getUserProfile } from './auth';
-import { showToast, escapeHtml, formatDate } from './ui';
-import type { Item, User } from './types';
+import { showToast, escapeHtml, formatDate, setButtonLoading, openModal, closeModal } from './ui';
+import type { Item, User, Claim } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
+let myClaims: Claim[] = [];
+let pendingClaimItemId: string | null = null;
 
 const grid = document.getElementById('itemsGrid');
+
+function hasPendingClaim(itemId: string): boolean {
+    return myClaims.some(c => c.itemId === itemId && c.status === 'pending');
+}
+
+function hasApprovedClaim(itemId: string): boolean {
+    return myClaims.some(c => c.itemId === itemId && c.status === 'approved');
+}
 
 function renderItems(items: Item[]): void {
     if (!grid) return;
@@ -41,10 +51,16 @@ function renderItems(items: Item[]): void {
                     ? '<span class="verified-badge">✓ Verified</span>'
                     : '';
 
-            const claimBtn =
-                item.verified && !item.recovered
-                    ? `<button type="button" class="claim-button" data-claim="${item.id}">Claim This Item</button>`
-                    : '';
+            let claimBtn = '';
+            if (item.verified && !item.recovered) {
+                if (hasApprovedClaim(item.id)) {
+                    claimBtn = `<div class="claim-status approved">✓ Claim Approved — Contact SJC Office</div>`;
+                } else if (hasPendingClaim(item.id)) {
+                    claimBtn = `<div class="claim-status pending">⏳ Claim Pending Review</div>`;
+                } else {
+                    claimBtn = `<button type="button" class="claim-button" data-claim="${item.id}">Claim This Item</button>`;
+                }
+            }
 
             const hasImages = item.imageUrls.length > 0;
 
@@ -81,10 +97,11 @@ function renderItems(items: Item[]): void {
                 showToast('Please Sign In or Sign Up first to claim this item.', 'warning');
                 return;
             }
-            showToast(
-                `Thank you, ${currentUser.fullName}! Please contact the SJC office to claim this item.`,
-                'success'
-            );
+            const itemId = btn.dataset.claim;
+            if (!itemId) return;
+            const item = allItems.find(i => i.id === itemId);
+            if (!item) return;
+            openClaimModal(item);
         });
     });
 
@@ -137,6 +154,90 @@ function openImageModal(src: string): void {
     document.body.style.overflow = 'hidden';
 }
 
+function openClaimModal(item: Item): void {
+    const modal = document.getElementById('claimModal');
+    const preview = document.getElementById('claimItemPreview');
+    if (!modal || !preview) return;
+
+    pendingClaimItemId = item.id;
+
+    const thumb = item.imageUrls.length > 0
+        ? `<img src="${item.imageUrls[0]}" alt="${escapeHtml(item.itemName)}">`
+        : `<div class="claim-preview-placeholder">${escapeHtml((item.itemName || '?').charAt(0).toUpperCase())}</div>`;
+
+    preview.innerHTML = `
+        ${thumb}
+        <div class="claim-preview-info">
+            <strong>${escapeHtml(item.itemName)}</strong>
+            <span>${escapeHtml(item.location)}</span>
+            <span>${escapeHtml(item.category)}</span>
+        </div>
+    `;
+
+    const form = document.getElementById('claimForm') as HTMLFormElement | null;
+    form?.reset();
+
+    openModal('claimModal');
+}
+
+function closeClaimModal(): void {
+    closeModal('claimModal');
+    pendingClaimItemId = null;
+}
+
+function bindClaimModal(): void {
+    document.getElementById('closeClaimBtn')?.addEventListener('click', closeClaimModal);
+
+    const modal = document.getElementById('claimModal');
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) closeClaimModal();
+    });
+
+    document.getElementById('claimForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser || !pendingClaimItemId) return;
+
+        const item = allItems.find(i => i.id === pendingClaimItemId);
+        if (!item) return;
+
+        const contact = (document.getElementById('claimContact') as HTMLInputElement).value.trim();
+        const proof = (document.getElementById('claimProof') as HTMLTextAreaElement).value.trim();
+
+        if (!contact || !proof) {
+            showToast('Please fill in all fields.', 'warning');
+            return;
+        }
+
+        const submitBtn = document.querySelector<HTMLButtonElement>('#claimForm .submit-button');
+        setButtonLoading(submitBtn, true, 'Submitting...');
+
+        try {
+            await createClaim({
+                itemId: item.id,
+                itemName: item.itemName,
+                userId: currentUser.uid,
+                userName: currentUser.fullName,
+                userEmail: currentUser.email,
+                contactNumber: contact,
+                proof
+            });
+
+            showToast('Claim submitted! Admin will review it soon.', 'success');
+            closeClaimModal();
+
+            if (currentUser) {
+                myClaims = await getClaimsByUser(currentUser.uid);
+                filterItems();
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('Failed to submit claim. Please try again.', 'error');
+        } finally {
+            setButtonLoading(submitBtn, false);
+        }
+    });
+}
+
 function filterItems(): void {
     const search =
         (document.getElementById('searchInput') as HTMLInputElement)?.value.toLowerCase() || '';
@@ -167,8 +268,25 @@ document.getElementById('searchInput')?.addEventListener('input', filterItems);
 document.getElementById('categoryFilter')?.addEventListener('change', filterItems);
 document.getElementById('statusFilter')?.addEventListener('change', filterItems);
 
+bindClaimModal();
+
 onAuthChange(async (fbUser) => {
-    currentUser = fbUser ? await getUserProfile(fbUser.uid) : null;
+    if (fbUser) {
+        currentUser = await getUserProfile(fbUser.uid);
+        if (currentUser) {
+            try {
+                myClaims = await getClaimsByUser(currentUser.uid);
+            } catch (err) {
+                console.error('Failed to load my claims:', err);
+                myClaims = [];
+            }
+            filterItems();
+        }
+    } else {
+        currentUser = null;
+        myClaims = [];
+        filterItems();
+    }
 });
 
 watchItems(items => {

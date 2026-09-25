@@ -1,9 +1,10 @@
 import type { RecordModel } from 'pocketbase';
 import { pb } from './pb';
-import type { Item, ItemStatus, ItemCategory, Notification } from './types';
+import type { Item, ItemStatus, ItemCategory, Notification, Claim, ClaimStatus } from './types';
 
 const ITEMS_COL = 'items';
 const NOTIFS_COL = 'notifications';
+const CLAIMS_COL = 'claims';
 
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -164,6 +165,40 @@ export async function getUnreadCount(uid: string): Promise<number> {
     return result.totalItems;
 }
 
+export function watchNotifications(uid: string, callback: (notifs: Notification[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const notifs = await getNotifications(uid);
+            if (!stopped) callback(notifs);
+        } catch (err) {
+            console.error('Failed to load notifications:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(NOTIFS_COL)
+        .subscribe('*', (e) => {
+            const record = e.record as RecordModel | undefined;
+            if (!record || String(record.userId) === uid) {
+                load();
+            }
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime notifications subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
 export async function markAsRead(notifId: string): Promise<void> {
     await pb.collection(NOTIFS_COL).update(notifId, { read: true });
 }
@@ -179,4 +214,121 @@ export async function markAllAsRead(uid: string): Promise<void> {
 
 export async function deleteNotification(notifId: string): Promise<void> {
     await pb.collection(NOTIFS_COL).delete(notifId);
+}
+
+function claimFromRecord(r: RecordModel): Claim {
+    return {
+        id: String(r.id),
+        itemId: String(r.itemId),
+        itemName: String(r.itemName || ''),
+        userId: String(r.userId),
+        userName: String(r.userName),
+        userEmail: String(r.userEmail),
+        contactNumber: String(r.contactNumber || ''),
+        proof: String(r.proof || ''),
+        status: (r.status as ClaimStatus) || 'pending',
+        adminNote: r.adminNote ? String(r.adminNote) : null,
+        reviewedBy: r.reviewedBy ? String(r.reviewedBy) : null,
+        reviewedAt: toDate(r.reviewedAt),
+        createdAt: toDate(r.created) ?? new Date()
+    };
+}
+
+interface CreateClaimInput {
+    itemId: string;
+    itemName: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    contactNumber: string;
+    proof: string;
+}
+
+export async function createClaim(input: CreateClaimInput): Promise<string> {
+    const record = await pb.collection(CLAIMS_COL).create({
+        itemId: input.itemId,
+        itemName: input.itemName,
+        userId: input.userId,
+        userName: input.userName,
+        userEmail: input.userEmail,
+        contactNumber: input.contactNumber,
+        proof: input.proof,
+        status: 'pending'
+    });
+    return record.id;
+}
+
+export async function getClaimsByUser(uid: string): Promise<Claim[]> {
+    const records = await pb.collection(CLAIMS_COL).getFullList({
+        filter: pb.filter('userId = {:uid}', { uid }),
+        sort: '-created'
+    });
+    return records.map(claimFromRecord);
+}
+
+export async function getAllClaims(): Promise<Claim[]> {
+    const records = await pb.collection(CLAIMS_COL).getFullList({
+        sort: '-created'
+    });
+    return records.map(claimFromRecord);
+}
+
+export function watchClaims(callback: (claims: Claim[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const claims = await getAllClaims();
+            if (!stopped) callback(claims);
+        } catch (err) {
+            console.error('Failed to load claims:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(CLAIMS_COL)
+        .subscribe('*', () => {
+            load();
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime claims subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+export async function approveClaim(claimId: string, adminId: string, adminNote: string = ''): Promise<void> {
+    await pb.collection(CLAIMS_COL).update(claimId, {
+        status: 'approved',
+        reviewedBy: adminId,
+        reviewedAt: new Date().toISOString(),
+        adminNote
+    });
+}
+
+export async function rejectClaim(claimId: string, adminId: string, adminNote: string = ''): Promise<void> {
+    await pb.collection(CLAIMS_COL).update(claimId, {
+        status: 'rejected',
+        reviewedBy: adminId,
+        reviewedAt: new Date().toISOString(),
+        adminNote
+    });
+}
+
+export async function getApprovedClaimForItem(itemId: string): Promise<Claim | null> {
+    try {
+        const record = await pb.collection(CLAIMS_COL).getFirstListItem(
+            pb.filter('itemId = {:itemId} && status = "approved"', { itemId })
+        );
+        return claimFromRecord(record);
+    } catch {
+        return null;
+    }
 }

@@ -1,14 +1,5 @@
 export type UserRole = 'user' | 'admin';
-
-export type ItemStatus =
-    | 'lost'
-    | 'found'
-    | 'pending'
-    | 'matched'
-    | 'ownership_verification'
-    | 'returning'
-    | 'recovered';
-
+export type ItemStatus = 'lost' | 'found' | 'pending';
 export type ItemCategory =
     | 'gadgets'
     | 'books'
@@ -19,9 +10,7 @@ export type ItemCategory =
     | 'documents'
     | 'others';
 
-export type MatchStatus = 'pending' | 'confirmed' | 'rejected';
 export type ClaimStatus = 'pending' | 'approved' | 'rejected';
-export type NotificationType = 'match' | 'claim' | 'system';
 
 export interface User {
     uid: string;
@@ -41,54 +30,37 @@ export interface Item {
     location: string;
     description: string;
     status: ItemStatus;
-    date: Date | null;
-
     verified: boolean;
-    verifiedAt: Date | null;
-
     recovered: boolean;
     recoveredAt: Date | null;
     recoveredBy: string | null;
-
-    matchedWithItemId: string | null;
-    matchedAt: Date | null;
-    returnedAt: Date | null;
-
     imageUrls: string[];
     createdAt: Date;
-}
-
-export interface Match {
-    id: string;
-    lostItemId: string;
-    foundItemId: string;
-    confidenceScore: number;
-    matchReason: string;
-    status: MatchStatus;
-    notifiedAt: Date | null;
-    createdAt: Date;
-}
-
-export interface Claim {
-    id: string;
-    itemId: string;
-    claimantId: string;
-    claimantName: string;
-    claimantEmail: string;
-    proof: string;
-    status: ClaimStatus;
-    reviewedBy: string | null;
-    reviewedAt: Date | null;
-    createdAt: Date;
+    verifiedAt: Date | null;
 }
 
 export interface Notification {
     id: string;
     userId: string;
     itemId: string;
-    type: NotificationType;
     message: string;
     read: boolean;
+    createdAt: Date;
+}
+
+export interface Claim {
+    id: string;
+    itemId: string;
+    itemName: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    contactNumber: string;
+    proof: string;
+    status: ClaimStatus;
+    adminNote: string | null;
+    reviewedBy: string | null;
+    reviewedAt: Date | null;
     createdAt: Date;
 }
 
