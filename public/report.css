@@ -1046,3 +1046,9 @@ html.is-admin .nav-links a[href="index.html"] {
 .nav-actions .user-menu-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+.nav-bell svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+}   

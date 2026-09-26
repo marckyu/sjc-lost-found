@@ -714,3 +714,16 @@ html.is-admin .nav-links a[href="index.html"] { display: none !important; }
 .nav-actions .user-menu-trigger:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+.notif-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: var(--green-800);
+    stroke-width: 2;
+}
+
+.nav-bell svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+}

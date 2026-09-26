@@ -1,7 +1,7 @@
 import './main';
 import { watchItems, createClaim, getClaimsByUser } from './db';
 import { onAuthChange, getUserProfile } from './auth';
-import { showToast, escapeHtml, formatDate, setButtonLoading, openModal, closeModal } from './ui';
+import { showToast, escapeHtml, formatDate, setButtonLoading, openModal, closeModal, refreshIcons } from './ui';
 import type { Item, User, Claim } from './types';
 
 let currentUser: User | null = null;
@@ -34,7 +34,7 @@ function renderItems(items: Item[]): void {
 
             if (item.recovered) {
                 statusClass = 'status-recovered';
-                statusText = '✓ Recovered';
+                statusText = 'Recovered';
             } else if (item.verified) {
                 statusClass = 'status-verified';
                 statusText = 'Verified';
@@ -48,7 +48,7 @@ function renderItems(items: Item[]): void {
 
             const verifiedBadge =
                 item.verified && !item.recovered
-                    ? '<span class="verified-badge">✓ Verified</span>'
+                    ? '<span class="verified-badge">Verified</span>'
                     : '';
 
             const canClaim =
@@ -57,9 +57,9 @@ function renderItems(items: Item[]): void {
             let claimBtn = '';
             if (canClaim) {
                 if (hasApprovedClaim(item.id)) {
-                    claimBtn = `<div class="claim-status approved">✓ Claim Approved — Contact SJC Office</div>`;
+                    claimBtn = `<div class="claim-status approved"><i data-lucide="circle-check"></i> Claim Approved — Contact SJC Office</div>`;
                 } else if (hasPendingClaim(item.id)) {
-                    claimBtn = `<div class="claim-status pending">⏳ Claim Pending Review</div>`;
+                    claimBtn = `<div class="claim-status pending"><i data-lucide="clock"></i> Claim Pending Review</div>`;
                 } else {
                     claimBtn = `<button type="button" class="claim-button" data-claim="${item.id}">Claim This Item</button>`;
                 }
@@ -93,6 +93,8 @@ function renderItems(items: Item[]): void {
             `;
         })
         .join('');
+
+    refreshIcons();
 
     document.querySelectorAll<HTMLElement>('[data-claim]').forEach(btn => {
         btn.addEventListener('click', () => {

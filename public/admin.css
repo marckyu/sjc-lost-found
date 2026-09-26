@@ -1650,3 +1650,9 @@ html.is-admin .nav-links a[href="index.html"] {
         width: auto;
     }
 }
+
+.nav-bell svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+}

@@ -1353,3 +1353,18 @@ html.is-admin .nav-links a[href="index.html"] {
     background: #d1fae5;
     border: 1px solid #a7f3d0;
 }   
+
+.claim-status svg {
+    width: 14px;
+    height: 14px;
+    vertical-align: -2px;
+    margin-right: 4px;
+    display: inline-block;
+    stroke-width: 2.5;
+}
+
+.nav-bell svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+}

@@ -4,7 +4,7 @@ import {
     sendNotification, markAsRecovered, watchNotifications,
     watchClaims, approveClaim, rejectClaim
 } from './db';
-import { showToast, escapeHtml, formatDate } from './ui';
+import { showToast, escapeHtml, formatDate, refreshIcons } from './ui';
 import type { Item, User, Notification, Claim } from './types';
 
 let currentUser: User | null = null;
@@ -48,10 +48,10 @@ function renderClaims(): void {
 
         if (claim.status === 'approved') {
             statusClass = 'claim-status-approved';
-            statusText = '✓ Approved';
+            statusText = 'Approved';
         } else if (claim.status === 'rejected') {
             statusClass = 'claim-status-rejected';
-            statusText = '✗ Rejected';
+            statusText = 'Rejected';
         }
 
         const item = allItems.find(i => i.id === claim.itemId);
@@ -277,7 +277,7 @@ function renderTable(): void {
 
         if (item.recovered) {
             statusClass = 'status-recovered';
-            statusText = '✓ Recovered';
+            statusText = 'Recovered';
         } else if (item.verified) {
             statusClass = 'status-verified';
             statusText = 'Verified';
@@ -326,6 +326,7 @@ function renderTable(): void {
     html += '</tbody></table>';
     itemsList.innerHTML = html;
 
+    refreshIcons();
     bindActions();
 }
 
@@ -531,10 +532,7 @@ function renderAdminNav(): void {
     navAuth.innerHTML = `
         <div class="nav-actions">
             <button class="nav-bell" id="navBell" type="button" aria-label="Notifications">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-                </svg>
+                <i data-lucide="bell"></i>
                 <span class="nav-bell-badge" id="navBellBadge" hidden>0</span>
             </button>
             <div class="user-menu" id="userMenu">
@@ -548,6 +546,8 @@ function renderAdminNav(): void {
             </div>
         </div>
     `;
+
+    refreshIcons();
 
     document.getElementById('navBell')?.addEventListener('click', (e) => {
         e.stopPropagation();

@@ -82,3 +82,14 @@ export function formatDate(date: Date | string | undefined | null): string {
         return 'N/A';
     }
 }
+
+export function refreshIcons(): void {
+    const lucide = (window as typeof window & { lucide?: { createIcons: () => void } }).lucide;
+    if (lucide && typeof lucide.createIcons === 'function') {
+        try {
+            lucide.createIcons();
+        } catch (err) {
+            console.error('Lucide refresh failed:', err);
+        }
+    }
+}
