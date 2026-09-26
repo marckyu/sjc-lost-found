@@ -1,7 +1,7 @@
 import './main';
 import { watchNotifications, markAsRead, markAllAsRead, deleteNotification } from './db';
 import { onAuthChange, getCurrentUser } from './auth';
-import { showToast, escapeHtml, formatDate, refreshIcons } from './ui';
+import { showToast, escapeHtml, formatDate } from './ui';
 import type { Notification, User } from './types';
 
 let currentUser: User | null = null;
@@ -40,7 +40,12 @@ function renderNotifications(): void {
 
     listEl.innerHTML = allNotifs.map(n => `
         <article class="notif-card ${n.read ? 'read' : 'unread'}" data-id="${n.id}">
-            <div class="notif-icon"><i data-lucide="bell"></i></div>
+            <div class="notif-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                </svg>
+            </div>
             <div class="notif-content">
                 <p class="notif-message">${escapeHtml(n.message)}</p>
                 <small class="notif-time">${formatDate(n.createdAt)}</small>
@@ -48,8 +53,6 @@ function renderNotifications(): void {
             <button class="notif-delete" data-delete="${n.id}" aria-label="Delete notification">&times;</button>
         </article>
     `).join('');
-
-    refreshIcons();
 
     listEl.querySelectorAll<HTMLElement>('[data-delete]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
