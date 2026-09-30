@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#166534">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SJC Lost & Found">
+    <meta name="msapplication-TileColor" content="#166534">
+    <meta name="msapplication-tap-highlight" content="no">
+    <title>Messages | SJC Campus Lost &amp; Found</title>
+    <script>
+    (function () {
+        try {
+            var raw = localStorage.getItem('pocketbase_auth');
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            var rec = data.record || data.model;
+            if (rec && rec.role === 'admin') {
+                document.documentElement.classList.add('is-admin');
+                var style = document.createElement('style');
+                style.textContent =
+                    '.nav-links a[href="report.html"], .nav-links a[href="index.html"] { display: none !important; }';
+                document.head.appendChild(style);
+            }
+        } catch (e) { }
+    })();
+    </script>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/messages.css">
+    <script type="module" src="/src/messages.ts"></script>
+</head>
+<body>
+    <header>
+        <a href="index.html" class="brand">
+            <span class="sjc-logo">SJC</span>
+            <span class="brand-copy">
+                <strong>Campus Lost &amp; Found</strong>
+                <small>Saint Jude College Manila</small>
+            </span>
+        </a>
+
+        <button class="hamburger" id="hamburgerBtn" type="button" aria-label="Open navigation" aria-controls="navLinks" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+
+        <nav aria-label="Main navigation">
+            <ul class="nav-links" id="navLinks">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="items.html">Lost &amp; Found</a></li>
+                <li><a href="report.html" data-require-auth>Report</a></li>
+                <li id="navAdminLink"></li>
+                <li id="navAuth"></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="chat-main">
+        <div class="page-header">
+            <h2>Messages</h2>
+            <p>Coordinate with the other party</p>
+        </div>
+
+        <div class="chat-layout">
+            <aside class="chat-sidebar" id="chatSidebar">
+                <div class="chat-sidebar-header">
+                    <span id="convCount" class="chat-sidebar-title">Conversations</span>
+                </div>
+                <div class="chat-conv-list" id="convList">
+                    <div class="empty-state chat-empty">
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </aside>
+
+            <section class="chat-thread" id="chatThread">
+                <div class="chat-thread-empty" id="threadEmpty">
+                    <div class="chat-thread-empty-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </div>
+                    <h3>Select a conversation</h3>
+                    <p>Choose from the list on the left to start chatting.</p>
+                </div>
+
+                <div class="chat-thread-active" id="threadActive" hidden>
+                    <div class="chat-thread-header">
+                        <button class="chat-back-btn" id="chatBackBtn" type="button" aria-label="Back">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                        </button>
+                        <div class="chat-thread-header-info">
+                            <strong id="chatHeaderName">-</strong>
+                            <small id="chatHeaderItem">-</small>
+                        </div>
+                    </div>
+
+                    <div class="chat-messages" id="chatMessages"></div>
+
+                    <form class="chat-input-form" id="chatForm">
+                        <input
+                            type="text"
+                            id="chatInput"
+                            placeholder="Type a message..."
+                            autocomplete="off"
+                            required
+                            maxlength="1000"
+                        >
+                        <button type="submit" class="chat-send-btn" aria-label="Send">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer><p>&copy; 2026 SJC Campus Lost &amp; Found. All rights reserved.</p></footer>
+
+    <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+        <div class="modal-content">
+            <button class="close-btn" id="closeAuthBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo">SJC</span>
+                <div>
+                    <h2 id="modalTitle">Welcome back</h2>
+                    <p id="modalSubtitle">Sign in to manage your reports.</p>
+                </div>
+            </div>
+            <div class="auth-message" id="authMessage" role="alert"></div>
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="signinTab" type="button" data-auth-tab="signin">Sign In</button>
+                <button class="auth-tab" id="signupTab" type="button" data-auth-tab="signup">Sign Up</button>
+            </div>
+            <form id="signinForm" class="auth-form" novalidate>
+                <div class="form-group">
+                    <label for="signinEmail">PHINMAEd Email</label>
+                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="signinPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input id="signinPassword" type="password" placeholder="Enter your password" required>
+                        <button class="toggle-password" type="button" data-toggle-password="signinPassword">Show</button>
+                    </div>
+                </div>
+                <button class="submit-button" type="submit">Sign In</button>
+            </form>
+            <form id="signupForm" class="auth-form" hidden novalidate>
+                <div class="form-group">
+                    <label for="signupName">Full Name</label>
+                    <input id="signupName" type="text" placeholder="Juan Dela Cruz" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupEmail">PHINMAEd Email</label>
+                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <div class="password-wrapper">
+                        <input id="signupPassword" type="password" placeholder="Create a password" required>
+                        <button class="toggle-password" type="button" data-toggle-password="signupPassword">Show</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="signupConfirmPassword">Confirm Password</label>
+                    <input id="signupConfirmPassword" type="password" placeholder="Re-enter your password" required>
+                </div>
+                <button class="submit-button" type="submit">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+</body>
+</html>

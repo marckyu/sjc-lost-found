@@ -64,6 +64,30 @@ export interface Claim {
     createdAt: Date;
 }
 
+export interface Conversation {
+    id: string;
+    itemId: string;
+    itemName: string;
+    user1Id: string;
+    user1Name: string;
+    user2Id: string;
+    user2Name: string;
+    lastMessage: string | null;
+    lastMessageAt: Date | null;
+    createdAt: Date;
+}
+
+export interface Message {
+    id: string;
+    conversationId: string;
+    senderId: string;
+    senderName: string;
+    receiverId: string;
+    text: string;
+    read: boolean;
+    createdAt: Date;
+}
+
 export interface AuthResult {
     success: boolean;
     message: string;

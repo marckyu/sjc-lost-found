@@ -9,7 +9,7 @@ let currentUser: User | null = null;
 let notifUnsubscribe: (() => void) | null = null;
 
 function isProtectedPage(): boolean {
-    return /\/(admin|report)\.html$/.test(window.location.pathname);
+    return /\/(admin|report|messages)\.html$/.test(window.location.pathname);
 }
 
 function applyRoleUI(user: User | null): void {
@@ -75,6 +75,7 @@ function updateNavAuth(user: User | null): void {
                         <span class="user-name">${escapeHtml(user.fullName)}</span>
                     </button>
                     <div class="dropdown-menu" role="menu">
+                        <a href="messages.html" class="dashboard" role="menuitem">Messages</a>
                         ${isAdmin ? '<a href="admin.html" class="dashboard" role="menuitem">Dashboard</a>' : ''}
                         <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
                     </div>

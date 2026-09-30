@@ -1,10 +1,15 @@
 import type { RecordModel } from 'pocketbase';
 import { pb } from './pb';
-import type { Item, ItemStatus, ItemCategory, Notification, Claim, ClaimStatus } from './types';
+import type {
+    Item, ItemStatus, ItemCategory, Notification, Claim, ClaimStatus,
+    Conversation, Message
+} from './types';
 
 const ITEMS_COL = 'items';
 const NOTIFS_COL = 'notifications';
 const CLAIMS_COL = 'claims';
+const CONVS_COL = 'conversations';
+const MSGS_COL = 'messages';
 
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -331,4 +336,258 @@ export async function getApprovedClaimForItem(itemId: string): Promise<Claim | n
     } catch {
         return null;
     }
+}
+
+function conversationFromRecord(r: RecordModel): Conversation {
+    return {
+        id: String(r.id),
+        itemId: String(r.itemId),
+        itemName: String(r.itemName || ''),
+        user1Id: String(r.user1Id),
+        user1Name: String(r.user1Name),
+        user2Id: String(r.user2Id),
+        user2Name: String(r.user2Name),
+        lastMessage: r.lastMessage ? String(r.lastMessage) : null,
+        lastMessageAt: toDate(r.lastMessageAt),
+        createdAt: toDate(r.created) ?? new Date()
+    };
+}
+
+function messageFromRecord(r: RecordModel): Message {
+    return {
+        id: String(r.id),
+        conversationId: String(r.conversationId),
+        senderId: String(r.senderId),
+        senderName: String(r.senderName),
+        receiverId: String(r.receiverId),
+        text: String(r.text || ''),
+        read: Boolean(r.read),
+        createdAt: toDate(r.created) ?? new Date()
+    };
+}
+
+export async function getUserConversations(uid: string): Promise<Conversation[]> {
+    const records = await pb.collection(CONVS_COL).getFullList({
+        filter: pb.filter('user1Id = {:uid} || user2Id = {:uid}', { uid }),
+        sort: '-lastMessageAt,-created'
+    });
+    return records.map(conversationFromRecord);
+}
+
+export function watchUserConversations(uid: string, callback: (convs: Conversation[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const convs = await getUserConversations(uid);
+            if (!stopped) callback(convs);
+        } catch (err) {
+            console.error('Failed to load conversations:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(CONVS_COL)
+        .subscribe('*', (e) => {
+            const record = e.record as RecordModel | undefined;
+            if (!record) {
+                load();
+                return;
+            }
+            const u1 = String(record.user1Id);
+            const u2 = String(record.user2Id);
+            if (u1 === uid || u2 === uid) {
+                load();
+            }
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime conversations subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+export async function getConversationById(id: string): Promise<Conversation | null> {
+    try {
+        const record = await pb.collection(CONVS_COL).getOne(id);
+        return conversationFromRecord(record);
+    } catch {
+        return null;
+    }
+}
+
+export async function findConversationBetween(
+    uid1: string,
+    uid2: string,
+    itemId: string
+): Promise<Conversation | null> {
+    try {
+        const record = await pb.collection(CONVS_COL).getFirstListItem(
+            pb.filter(
+                '(user1Id = {:u1} && user2Id = {:u2} || user1Id = {:u2} && user2Id = {:u1}) && itemId = {:itemId}',
+                { u1: uid1, u2: uid2, itemId }
+            )
+        );
+        return conversationFromRecord(record);
+    } catch {
+        return null;
+    }
+}
+
+interface CreateConversationInput {
+    itemId: string;
+    itemName: string;
+    user1Id: string;
+    user1Name: string;
+    user2Id: string;
+    user2Name: string;
+}
+
+export async function createConversation(input: CreateConversationInput): Promise<string> {
+    const existing = await findConversationBetween(input.user1Id, input.user2Id, input.itemId);
+    if (existing) return existing.id;
+
+    const record = await pb.collection(CONVS_COL).create({
+        itemId: input.itemId,
+        itemName: input.itemName,
+        user1Id: input.user1Id,
+        user1Name: input.user1Name,
+        user2Id: input.user2Id,
+        user2Name: input.user2Name,
+        lastMessage: '',
+        lastMessageAt: new Date().toISOString()
+    });
+    return record.id;
+}
+
+export async function getMessages(conversationId: string): Promise<Message[]> {
+    const records = await pb.collection(MSGS_COL).getFullList({
+        filter: pb.filter('conversationId = {:cid}', { cid: conversationId }),
+        sort: 'created'
+    });
+    return records.map(messageFromRecord);
+}
+
+export function watchMessages(conversationId: string, callback: (msgs: Message[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const msgs = await getMessages(conversationId);
+            if (!stopped) callback(msgs);
+        } catch (err) {
+            console.error('Failed to load messages:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(MSGS_COL)
+        .subscribe('*', (e) => {
+            const record = e.record as RecordModel | undefined;
+            if (!record || String(record.conversationId) === conversationId) {
+                load();
+            }
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime messages subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+interface SendMessageInput {
+    conversationId: string;
+    senderId: string;
+    senderName: string;
+    receiverId: string;
+    text: string;
+}
+
+export async function sendMessage(input: SendMessageInput): Promise<string> {
+    const record = await pb.collection(MSGS_COL).create({
+        conversationId: input.conversationId,
+        senderId: input.senderId,
+        senderName: input.senderName,
+        receiverId: input.receiverId,
+        text: input.text,
+        read: false
+    });
+
+    try {
+        await pb.collection(CONVS_COL).update(input.conversationId, {
+            lastMessage: input.text,
+            lastMessageAt: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error('Failed to update conversation preview:', err);
+    }
+
+    return record.id;
+}
+
+export async function markConversationAsRead(conversationId: string, uid: string): Promise<void> {
+    const records = await pb.collection(MSGS_COL).getFullList({
+        filter: pb.filter(
+            'conversationId = {:cid} && receiverId = {:uid} && read = false',
+            { cid: conversationId, uid }
+        )
+    });
+    await Promise.all(
+        records.map(r => pb.collection(MSGS_COL).update(r.id, { read: true }))
+    );
+}
+
+export async function getUnreadMessageCount(uid: string): Promise<number> {
+    try {
+        const result = await pb.collection(MSGS_COL).getList(1, 1, {
+            filter: pb.filter('receiverId = {:uid} && read = false', { uid })
+        });
+        return result.totalItems;
+    } catch {
+        return 0;
+    }
+}
+
+export function watchUnreadMessages(uid: string, callback: (count: number) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        const count = await getUnreadMessageCount(uid);
+        if (!stopped) callback(count);
+    };
+
+    load();
+
+    pb.collection(MSGS_COL)
+        .subscribe('*', (e) => {
+            const record = e.record as RecordModel | undefined;
+            if (!record || String(record.receiverId) === uid || String(record.senderId) === uid) {
+                load();
+            }
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime unread messages subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
 }
