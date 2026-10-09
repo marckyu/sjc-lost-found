@@ -59,11 +59,16 @@ function renderNotifications(): void {
             e.stopPropagation();
             const id = btn.dataset.delete;
             if (!id) return;
+
+            const card = btn.closest('.notif-card') as HTMLElement | null;
+            if (card) card.classList.add('removing');
+
             try {
                 await deleteNotification(id);
             } catch (err) {
                 console.error(err);
                 showToast('Failed to delete notification.', 'error');
+                if (card) card.classList.remove('removing');
             }
         });
     });

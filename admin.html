@@ -11,6 +11,10 @@
     <meta name="msapplication-TileColor" content="#166534">
     <meta name="msapplication-tap-highlight" content="no">
     <title>SJC Admin Dashboard</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="/sjc-logo-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/sjc-logo-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/sjc-logo-192.png">
+    <link rel="manifest" href="/manifest.json">
     <script>
     (function () {
         try {
@@ -28,15 +32,15 @@
         } catch (e) { }
     })();
     </script>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <link rel="stylesheet" href="/admin.css">
-    <script src="https://unpkg.com/lucide@latest" defer></script>
     <script type="module" src="/src/admin.ts"></script>
 </head>
 <body>
     <header>
         <a href="admin.html" class="brand">
-            <span class="sjc-logo">SJC</span>
+            <span class="sjc-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
             <span class="brand-copy">
                 <strong>Admin Dashboard</strong>
                 <small>Saint Jude College Manila</small>
@@ -107,6 +111,7 @@
                     <h2>Manage Items</h2>
                 </div>
                 <div class="admin-actions">
+                    <button class="admin-button secondary" id="testMatchBtn" type="button">Run AI Match</button>
                     <button class="admin-button secondary" id="refreshBtn" type="button">Refresh</button>
                     <button class="admin-button danger" id="clearBtn" type="button">Clear All</button>
                 </div>
@@ -158,7 +163,7 @@
         <div class="modal-content">
             <button class="close-btn" type="button" data-close aria-label="Close dialog">&times;</button>
             <div class="modal-intro">
-                <span class="modal-logo">SJC</span>
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
                 <div>
                     <h2 id="reviewTitle">Review Claim</h2>
                     <p>Approve or reject this claim request.</p>
@@ -180,7 +185,7 @@
         <div class="modal-content">
             <button class="close-btn" type="button" data-close aria-label="Close dialog">&times;</button>
             <div class="modal-intro">
-                <span class="modal-logo">SJC</span>
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
                 <div>
                     <h2 id="notifyTitle">Send Notification</h2>
                     <p>Send an update to the reporter.</p>
@@ -202,6 +207,46 @@
             <div class="confirm-actions">
                 <button class="admin-button secondary" type="button" data-close>Cancel</button>
                 <button class="admin-button" id="notifySend" type="button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="avatarModal" role="dialog" aria-modal="true" aria-labelledby="avatarTitle" hidden>
+        <div class="modal-content avatar-modal-content">
+            <button class="close-btn" id="closeAvatarBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="avatar-modal-header">
+                <div class="avatar-modal-title-wrap">
+                    <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
+                    <div>
+                        <h2 id="avatarTitle">Change Profile Picture</h2>
+                        <p>Upload and crop your photo (max 5MB).</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="avatar-modal-body">
+                <div id="avatarPreviewStage">
+                    <div id="avatarPreview" class="avatar-preview"></div>
+                    <input type="file" id="avatarInput" accept="image/*" hidden>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarChooseBtn" type="button">Choose Photo</button>
+                        <button class="av-btn av-btn-danger" id="avatarRemoveBtn" type="button">Remove</button>
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" type="button" data-close-avatar>Cancel</button>
+                        <button class="av-btn av-btn-solid" id="avatarSaveBtn" type="button">Save</button>
+                    </div>
+                </div>
+
+                <div id="avatarCropArea" hidden>
+                    <div class="avatar-crop-wrapper">
+                        <img id="avatarCropImage" src="" alt="Crop">
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarCancelCrop" type="button">Back</button>
+                        <button class="av-btn av-btn-solid" id="avatarApplyCrop" type="button">Apply Crop</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

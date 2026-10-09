@@ -2,8 +2,8 @@
     "name": "SJC Campus Lost & Found",
     "short_name": "SJC Lost & Found",
     "description": "Report and find lost belongings at Saint Jude College Manila",
-    "start_url": "index.html",
-    "scope": "./",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
     "display_override": ["standalone", "minimal-ui"],
     "orientation": "portrait-primary",
@@ -12,5 +12,46 @@
     "lang": "en",
     "dir": "ltr",
     "categories": ["education", "productivity", "utilities"],
-    "icons": []
+    "icons": [
+        {
+            "src": "/sjc-logo-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/sjc-logo-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/sjc-logo-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/sjc-logo-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/screenshot-wide.png",
+            "sizes": "1280x720",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "SJC Lost & Found — Desktop view"
+        },
+        {
+            "src": "/screenshot-mobile.png",
+            "sizes": "390x844",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "SJC Lost & Found — Mobile view"
+        }
+    ]
 }

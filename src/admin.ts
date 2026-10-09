@@ -1,20 +1,42 @@
-import { getCurrentUser, signOut, signIn } from './auth';
+import { getCurrentUser, signOut } from './auth';
 import {
     watchItems, verifyItem, deleteItem, toggleItemStatus,
     sendNotification, markAsRecovered, watchNotifications,
-    watchClaims, approveClaim, rejectClaim, createConversation
+    watchClaims, approveClaim, rejectClaim, createConversation,
+    watchAllAdminMessages, sendAdminMessage, getAdminMessagesForThread,
+    buildAdminThreads, markAdminThreadAsRead, getUsersByIds,
+    watchUnreadMessages
 } from './db';
 import { showToast, escapeHtml, formatDate } from './ui';
-import type { Item, User, Notification, Claim } from './types';
+import { runMatching } from './matcher';
+import type { Item, User, Notification, Claim, AdminMessage, AdminThread } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
 let allClaims: Claim[] = [];
+let allAdminMessages: AdminMessage[] = [];
+let allAdminThreads: AdminThread[] = [];
+let activeThread: AdminThread | null = null;
 let notifUnsubscribe: (() => void) | null = null;
+let adminMsgsUnsubscribe: (() => void) | null = null;
+let msgUnreadUnsub: (() => void) | null = null;
+let threadMsgsUnsubscribe: (() => void) | null = null;
 let activeClaim: Claim | null = null;
+let userMsgUnread = 0;
+let adminMsgUnread = 0;
+
+let userCache = new Map<string, { fullname: string; avatar: string }>();
 
 const itemsList = document.getElementById('itemsList');
 const claimsList = document.getElementById('claimsList');
+const inquiryList = document.getElementById('inquiryList');
+const inquiryMessages = document.getElementById('inquiryMessages');
+const inquiryEmpty = document.getElementById('inquiryEmpty');
+const inquiryActive = document.getElementById('inquiryActive');
+const inquiryHeaderName = document.getElementById('inquiryHeaderName');
+const inquiryHeaderItem = document.getElementById('inquiryHeaderItem');
+const inquiryReplyForm = document.getElementById('inquiryReplyForm') as HTMLFormElement | null;
+const inquiryReplyInput = document.getElementById('inquiryReplyInput') as HTMLInputElement | null;
 
 function renderStats(): void {
     const total = document.getElementById('totalItems');
@@ -59,6 +81,14 @@ function renderClaims(): void {
             ? `<img class="claim-thumb" src="${item.imageUrls[0]}" alt="Item">`
             : `<div class="claim-thumb-placeholder">?</div>`;
 
+        const info = userCache.get(claim.userId);
+        const avatar = info?.avatar;
+        const initial = (claim.userName || '?').charAt(0).toUpperCase();
+
+        const claimantAvatar = avatar
+            ? `<img src="${avatar}" alt="${escapeHtml(claim.userName)}" class="claim-claimant-avatar">`
+            : `<span class="claim-claimant-avatar">${escapeHtml(initial)}</span>`;
+
         let actionsHtml = '';
         if (claim.status === 'pending') {
             actionsHtml = `
@@ -77,11 +107,11 @@ function renderClaims(): void {
                         </div>
                         <small class="claim-date">${formatDate(claim.createdAt)}</small>
                     </div>
+                    <div class="claim-claimant-row">
+                        ${claimantAvatar}
+                        <span class="claim-claimant-name">${escapeHtml(claim.userName)}</span>
+                    </div>
                     <div class="claim-card-grid">
-                        <div>
-                            <span class="claim-label">Claimant</span>
-                            <span class="claim-value">${escapeHtml(claim.userName)}</span>
-                        </div>
                         <div>
                             <span class="claim-label">Contact</span>
                             <span class="claim-value">${escapeHtml(claim.contactNumber)}</span>
@@ -111,6 +141,147 @@ function renderClaims(): void {
             openReviewModal(claim);
         });
     });
+}
+
+function renderInquiryList(): void {
+    if (!inquiryList) return;
+
+    const unreadTotal = allAdminThreads.reduce((sum, t) => sum + t.unreadCount, 0);
+    const countEl = document.getElementById('inquiryCount');
+    if (countEl) countEl.textContent = String(unreadTotal);
+
+    if (allAdminThreads.length === 0) {
+        inquiryList.innerHTML = '<div class="empty-state"><p>No inquiries yet.</p></div>';
+        return;
+    }
+
+    inquiryList.innerHTML = allAdminThreads.map(thread => {
+        const isActive = activeThread?.userId === thread.userId && activeThread?.itemId === thread.itemId;
+        const initial = (thread.userName || '?').charAt(0).toUpperCase();
+        const info = userCache.get(thread.userId);
+        const avatar = info?.avatar;
+
+        const avatarHtml = avatar
+            ? `<img src="${avatar}" alt="${escapeHtml(thread.userName)}">`
+            : escapeHtml(initial);
+
+        const preview = thread.lastMessage.length > 40
+            ? thread.lastMessage.substring(0, 40) + '…'
+            : thread.lastMessage;
+        const time = formatDate(thread.lastMessageAt);
+        const unreadBadge = thread.unreadCount > 0
+            ? `<span class="inquiry-unread">${thread.unreadCount}</span>`
+            : '';
+
+        return `
+            <button class="inquiry-item ${isActive ? 'active' : ''}"
+                    data-user-id="${thread.userId}"
+                    data-item-id="${thread.itemId}"
+                    type="button">
+                <span class="inquiry-avatar">${avatarHtml}</span>
+                <span class="inquiry-info">
+                    <span class="inquiry-top">
+                        <strong>${escapeHtml(thread.userName)} ${unreadBadge}</strong>
+                        <small>${time}</small>
+                    </span>
+                    <span class="inquiry-preview">${escapeHtml(preview)}</span>
+                    <span class="inquiry-item-name">Re: ${escapeHtml(thread.itemName)}</span>
+                </span>
+            </button>
+        `;
+    }).join('');
+
+    inquiryList.querySelectorAll<HTMLElement>('[data-user-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const userId = btn.dataset.userId;
+            const itemId = btn.dataset.itemId;
+            if (!userId || !itemId) return;
+            const thread = allAdminThreads.find(t => t.userId === userId && t.itemId === itemId);
+            if (!thread) return;
+            openInquiryThread(thread);
+        });
+    });
+}
+
+function openInquiryThread(thread: AdminThread): void {
+    if (threadMsgsUnsubscribe) {
+        threadMsgsUnsubscribe();
+        threadMsgsUnsubscribe = null;
+    }
+
+    activeThread = thread;
+
+    if (inquiryHeaderName) inquiryHeaderName.textContent = thread.userName;
+    if (inquiryHeaderItem) inquiryHeaderItem.textContent = `${thread.userEmail} — Re: ${thread.itemName}`;
+
+    if (inquiryEmpty) inquiryEmpty.hidden = true;
+    if (inquiryActive) inquiryActive.hidden = false;
+
+    renderInquiryList();
+
+    threadMsgsUnsubscribe = watchAdminMessagesForThread(thread.userId, thread.itemId, (msgs) => {
+        renderThreadMessages(msgs);
+    });
+
+    markAdminThreadAsRead(thread.userId, thread.itemId, 'admin').catch(err => {
+        console.error('Failed to mark as read:', err);
+    });
+}
+
+function renderThreadMessages(msgs: AdminMessage[]): void {
+    if (!inquiryMessages) return;
+
+    if (msgs.length === 0) {
+        inquiryMessages.innerHTML = '<div class="inquiry-empty" style="padding:20px;"><p>No messages yet.</p></div>';
+        return;
+    }
+
+    inquiryMessages.innerHTML = msgs.map(m => {
+        const isAdmin = m.senderRole === 'admin';
+        return `
+            <div class="inquiry-bubble ${isAdmin ? 'admin' : 'user'}" data-msg-id="${m.id}">
+                ${!isAdmin ? `<span class="inquiry-bubble-sender">${escapeHtml(m.userName)}</span>` : ''}
+                <p class="inquiry-bubble-text">${escapeHtml(m.text)}</p>
+                <small class="inquiry-bubble-time">${formatDate(m.createdAt)}</small>
+            </div>
+        `;
+    }).join('');
+
+    inquiryMessages.scrollTop = inquiryMessages.scrollHeight;
+}
+
+function watchAdminMessagesForThread(
+    uid: string,
+    itemId: string,
+    callback: (msgs: AdminMessage[]) => void
+): () => void {
+    let stopped = false;
+    let unsub: (() => void) | null = null;
+
+    const load = async () => {
+        try {
+            const msgs = await getAdminMessagesForThread(uid, itemId);
+            if (!stopped) callback(msgs);
+        } catch (err) {
+            console.error('Failed to load thread:', err);
+        }
+    };
+
+    load();
+
+    import('./db').then(() => {
+        unsub = watchAllAdminMessages((allMsgs) => {
+            const filtered = allMsgs
+                .filter(m => m.userId === uid && m.itemId === itemId)
+                .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+            if (!stopped) callback(filtered);
+        });
+    });
+
+    return () => {
+        stopped = true;
+        if (unsub) unsub();
+    };
 }
 
 function openReviewModal(claim: Claim): void {
@@ -321,6 +492,14 @@ function renderTable(): void {
         }
         actionsHtml += `<button class="action-btn delete" data-action="delete" data-id="${item.id}">Delete</button>`;
 
+        const info = userCache.get(item.userId);
+        const avatar = info?.avatar;
+        const initial = (item.userName || '?').charAt(0).toUpperCase();
+
+        const reporterAvatar = avatar
+            ? `<img src="${avatar}" alt="${escapeHtml(item.userName)}" class="table-avatar">`
+            : `<span class="table-avatar">${escapeHtml(initial)}</span>`;
+
         html += `
             <tr>
                 <td data-label="Item">${escapeHtml(item.itemName)}</td>
@@ -328,7 +507,12 @@ function renderTable(): void {
                 <td data-label="Location">${escapeHtml(item.location)}</td>
                 <td data-label="Status"><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td data-label="Date">${formatDate(item.createdAt)}</td>
-                <td data-label="By">${escapeHtml(item.userName)}</td>
+                <td data-label="By">
+                    <div class="user-cell">
+                        ${reporterAvatar}
+                        <span>${escapeHtml(item.userName)}</span>
+                    </div>
+                </td>
                 <td data-label="Contact"><a href="mailto:${escapeHtml(item.userEmail)}" class="contact-link">${escapeHtml(item.userEmail)}</a></td>
                 <td data-label="Image">${imageCell}</td>
                 <td data-label="Actions">${actionsHtml}</td>
@@ -358,11 +542,31 @@ function bindActions(): void {
                 if (!confirm(`Verify "${item.itemName}" as a legitimate report?`)) return;
                 try {
                     await verifyItem(id);
-                    await sendNotification(
-                        item.userId,
-                        item.id,
-                        `Good news! Your report "${item.itemName}" has been verified by the admin.`
-                    );
+
+                    try {
+                        const matches = await runMatching(item);
+                        if (matches.length > 0) {
+                            showToast(`AI found ${matches.length} match(es) for "${item.itemName}".`, 'success');
+                        }
+                    } catch (matchErr) {
+                        console.error('Matching failed:', matchErr);
+                    }
+
+                    const verifyMsg = `Good news! Your report "${item.itemName}" has been verified by the admin.`;
+                    await sendNotification(item.userId, item.id, verifyMsg);
+                    try {
+                        await sendAdminMessage({
+                            userId: item.userId,
+                            userName: item.userName,
+                            userEmail: item.userEmail,
+                            itemId: item.id,
+                            itemName: item.itemName,
+                            senderRole: 'admin',
+                            text: verifyMsg
+                        });
+                    } catch (msgErr) {
+                        console.error('Failed to open admin thread:', msgErr);
+                    }
                     showToast(`"${item.itemName}" verified successfully.`, 'success');
                 } catch (err) {
                     console.error(err);
@@ -373,11 +577,21 @@ function bindActions(): void {
                 if (!currentUser) return;
                 try {
                     await markAsRecovered(id, currentUser.uid);
-                    await sendNotification(
-                        item.userId,
-                        item.id,
-                        `Great news! "${item.itemName}" has been marked as recovered. Thank you for reporting!`
-                    );
+                    const recoverMsg = `Great news! "${item.itemName}" has been marked as recovered. Thank you for reporting!`;
+                    await sendNotification(item.userId, item.id, recoverMsg);
+                    try {
+                        await sendAdminMessage({
+                            userId: item.userId,
+                            userName: item.userName,
+                            userEmail: item.userEmail,
+                            itemId: item.id,
+                            itemName: item.itemName,
+                            senderRole: 'admin',
+                            text: recoverMsg
+                        });
+                    } catch (msgErr) {
+                        console.error('Failed to open admin thread:', msgErr);
+                    }
                     showToast(`"${item.itemName}" marked as recovered.`, 'success');
                 } catch (err) {
                     console.error(err);
@@ -412,6 +626,44 @@ function bindActions(): void {
             openImageModal(src);
         });
     });
+}
+
+async function handleRunAiMatch(): Promise<void> {
+    const btn = document.getElementById('testMatchBtn') as HTMLButtonElement | null;
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+    }
+
+    showToast('Running AI matching on all items...', 'info');
+
+    try {
+        const matches = await runMatching();
+
+        if (matches.length > 0) {
+            showToast(`AI found ${matches.length} match(es) in existing items!`, 'success');
+
+            const summary = matches
+                .map(
+                    m =>
+                        `• "${m.lostItem.itemName}" ↔ "${m.foundItem.itemName}" (${m.score}%)`
+                )
+                .join('\n');
+
+            console.log('[AI Match Results]\n' + summary);
+        } else {
+            showToast('No matches found in existing items.', 'info');
+        }
+    } catch (err: any) {
+        console.error('[admin] AI matching failed:', err);
+        console.error('[admin] error message:', err?.message);
+        showToast(`AI matching failed: ${err?.message || 'Check console'}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Run AI Match';
+        }
+    }
 }
 
 function openNotifyModal(item: Item): void {
@@ -480,7 +732,26 @@ async function handleSendNotification(): Promise<void> {
     }
 
     try {
-        await sendNotification(userId, itemId, `${subject} — ${message}`);
+        const fullText = `${subject} — ${message}`;
+        await sendNotification(userId, itemId, fullText);
+
+        const item = allItems.find(i => i.id === itemId);
+        if (item) {
+            try {
+                await sendAdminMessage({
+                    userId: item.userId,
+                    userName: item.userName,
+                    userEmail: item.userEmail,
+                    itemId: item.id,
+                    itemName: item.itemName,
+                    senderRole: 'admin',
+                    text: fullText
+                });
+            } catch (msgErr) {
+                console.error('Failed to open admin thread:', msgErr);
+            }
+        }
+
         showToast('Notification sent successfully.', 'success');
         closeNotifyModal();
     } catch (err) {
@@ -491,6 +762,32 @@ async function handleSendNotification(): Promise<void> {
             sendBtn.disabled = false;
             sendBtn.textContent = 'Send';
         }
+    }
+}
+
+async function handleSendAdminReply(): Promise<void> {
+    if (!currentUser || !activeThread || !inquiryReplyInput) return;
+
+    const text = inquiryReplyInput.value.trim();
+    if (!text) return;
+
+    inquiryReplyInput.value = '';
+    inquiryReplyInput.focus();
+
+    try {
+        await sendAdminMessage({
+            userId: activeThread.userId,
+            userName: activeThread.userName,
+            userEmail: activeThread.userEmail,
+            itemId: activeThread.itemId,
+            itemName: activeThread.itemName,
+            senderRole: 'admin',
+            text
+        });
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to send reply.', 'error');
+        inquiryReplyInput.value = text;
     }
 }
 
@@ -537,6 +834,63 @@ function updateBellBadge(notifs: Notification[]): void {
     }
 }
 
+function renderAvatar(user: User): string {
+    if (user.avatar) {
+        return `<img src="${user.avatar}" alt="${escapeHtml(user.fullName)}">`;
+    }
+    return escapeHtml(user.fullName.charAt(0).toUpperCase());
+}
+
+function injectMsgBadgeStyles(): void {
+    if (document.getElementById('sjc-msg-badge-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'sjc-msg-badge-styles';
+    style.textContent = `
+        .nav-msg-badge {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-50%);
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            color: #fff;
+            background: #dc2626;
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function attachMsgBadge(): void {
+    document.querySelectorAll<HTMLAnchorElement>('a[href="messages.html"].dashboard').forEach(link => {
+        if (link.querySelector('.nav-msg-badge')) return;
+        if (getComputedStyle(link).position === 'static') {
+            link.style.position = 'relative';
+        }
+        const badge = document.createElement('span');
+        badge.className = 'nav-msg-badge';
+        badge.dataset.msgBadge = 'dropdown';
+        badge.hidden = true;
+        badge.textContent = '0';
+        link.appendChild(badge);
+    });
+}
+
+function refreshMsgBadge(): void {
+    const total = userMsgUnread + adminMsgUnread;
+    document.querySelectorAll<HTMLElement>('[data-msg-badge]').forEach(b => {
+        b.textContent = String(total);
+        b.hidden = total === 0;
+    });
+}
+
 function renderAdminNav(): void {
     const navAuth = document.getElementById('navAuth');
     if (!navAuth || !currentUser) return;
@@ -552,10 +906,14 @@ function renderAdminNav(): void {
             </button>
             <div class="user-menu" id="userMenu">
                 <button class="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
-                    <span class="user-avatar">${escapeHtml(currentUser.fullName.charAt(0).toUpperCase())}</span>
+                    <span class="user-avatar">${renderAvatar(currentUser)}</span>
                     <span class="user-name">${escapeHtml(currentUser.fullName)}</span>
+                    <svg class="user-menu-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
                 </button>
                 <div class="dropdown-menu" role="menu">
+                    <a href="javascript:void(0)" data-change-avatar class="dashboard" role="menuitem">Change Photo</a>
                     <a href="messages.html" class="dashboard" role="menuitem">Messages</a>
                     <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
                 </div>
@@ -576,10 +934,17 @@ function renderAdminNav(): void {
         trigger.setAttribute('aria-expanded', String(userMenu!.classList.contains('active')));
     });
 
+    navAuth.querySelector('[data-change-avatar]')?.addEventListener('click', async () => {
+        const { openAvatarModal } = await import('./profile');
+        openAvatarModal();
+    });
+
     navAuth.querySelector('[data-signout]')?.addEventListener('click', async () => {
         await signOut();
         window.location.href = 'index.html';
     });
+
+    attachMsgBadge();
 }
 
 function bindUI(): void {
@@ -589,11 +954,18 @@ function bindUI(): void {
 
     document.getElementById('clearBtn')?.addEventListener('click', handleClearAll);
 
+    document.getElementById('testMatchBtn')?.addEventListener('click', handleRunAiMatch);
+
     document.getElementById('notifySend')?.addEventListener('click', handleSendNotification);
     document.getElementById('notifyMessage')?.addEventListener('input', updateCharCounter);
 
     document.getElementById('approveBtn')?.addEventListener('click', handleApprove);
     document.getElementById('rejectBtn')?.addEventListener('click', handleReject);
+
+    inquiryReplyForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleSendAdminReply();
+    });
 
     const searchInput = document.getElementById('tableSearch') as HTMLInputElement | null;
     searchInput?.addEventListener('input', () => renderTable());
@@ -675,20 +1047,14 @@ function bindUI(): void {
 
 async function initializeAdmin(): Promise<void> {
     try {
-        let profile = await getCurrentUser();
+        const profile = await getCurrentUser();
 
-        if (!profile || profile.role !== 'admin') {
-            try {
-                await signIn('superadmin@phinmaed.com', 'admin123');
-                profile = await getCurrentUser();
-            } catch (err) {
-                console.error('[admin] Auto-login failed:', err);
-                window.location.href = 'index.html';
-                return;
-            }
+        if (!profile) {
+            window.location.href = 'index.html';
+            return;
         }
 
-        if (!profile || profile.role !== 'admin') {
+        if (profile.role !== 'admin') {
             window.location.href = 'index.html';
             return;
         }
@@ -701,15 +1067,51 @@ async function initializeAdmin(): Promise<void> {
             updateBellBadge(notifs);
         });
 
-        watchItems(items => {
+        msgUnreadUnsub = watchUnreadMessages(currentUser.uid, (count) => {
+            userMsgUnread = count;
+            refreshMsgBadge();
+        });
+
+        adminMsgsUnsubscribe = watchAllAdminMessages((msgs) => {
+            allAdminMessages = msgs;
+            allAdminThreads = buildAdminThreads(msgs);
+            renderInquiryList();
+
+            adminMsgUnread = msgs.filter(m => m.senderRole === 'user' && !m.read).length;
+            refreshMsgBadge();
+        });
+
+        watchItems(async items => {
             allItems = items;
+
+            const uids = [...new Set(items.map(i => i.userId))];
+            const claimUids = allClaims.map(c => c.userId);
+            const allUids = [...new Set([...uids, ...claimUids])];
+
+            try {
+                userCache = await getUsersByIds(allUids);
+            } catch (err) {
+                console.error('User cache failed:', err);
+            }
+
             renderStats();
             renderTable();
             renderClaims();
         });
 
-        watchClaims(claims => {
+        watchClaims(async claims => {
             allClaims = claims;
+
+            const uids = claims.map(c => c.userId);
+            if (uids.length > 0) {
+                try {
+                    const users = await getUsersByIds(uids);
+                    users.forEach((v, k) => userCache.set(k, v));
+                } catch (err) {
+                    console.error('Claim user cache failed:', err);
+                }
+            }
+
             renderClaims();
         });
     } catch (err) {
@@ -718,4 +1120,5 @@ async function initializeAdmin(): Promise<void> {
     }
 }
 
+injectMsgBadgeStyles();
 initializeAdmin();

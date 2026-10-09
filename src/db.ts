@@ -2,7 +2,7 @@ import type { RecordModel } from 'pocketbase';
 import { pb } from './pb';
 import type {
     Item, ItemStatus, ItemCategory, Notification, Claim, ClaimStatus,
-    Conversation, Message
+    Conversation, Message, AdminMessage, AdminMessageRole, AdminThread, Match
 } from './types';
 
 const ITEMS_COL = 'items';
@@ -10,6 +10,8 @@ const NOTIFS_COL = 'notifications';
 const CLAIMS_COL = 'claims';
 const CONVS_COL = 'conversations';
 const MSGS_COL = 'messages';
+const ADMIN_MSGS_COL = 'admin_messages';
+const MATCHES_COL = 'matches';
 
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -30,11 +32,14 @@ function itemFromRecord(r: RecordModel): Item {
         location: r.location,
         description: r.description,
         status: r.status as ItemStatus,
+        date: toDate(r.date),
         verified: r.verified ?? false,
         recovered: r.recovered ?? false,
         recoveredAt: toDate(r.recoveredAt),
         recoveredBy: r.recoveredBy ?? null,
-        imageUrls: files.map(name => pb.files.getURL(r, name, { download: false })),
+        returnedAt: toDate(r.returnedAt),
+        imageUrls: files.map(name => pb.files.getURL(r, name, { thumb: '400x400', download: false })),
+        fullImageUrls: files.map(name => pb.files.getURL(r, name, { download: false })),
         createdAt: toDate(r.created) ?? new Date(),
         verifiedAt: toDate(r.verifiedAt)
     } as Item;
@@ -349,7 +354,8 @@ function conversationFromRecord(r: RecordModel): Conversation {
         user2Name: String(r.user2Name),
         lastMessage: r.lastMessage ? String(r.lastMessage) : null,
         lastMessageAt: toDate(r.lastMessageAt),
-        createdAt: toDate(r.created) ?? new Date()
+        createdAt: toDate(r.created) ?? new Date(),
+        hiddenFor: Array.isArray(r.hiddenFor) ? r.hiddenFor.map(String) : []
     };
 }
 
@@ -462,9 +468,38 @@ export async function createConversation(input: CreateConversationInput): Promis
         user2Id: input.user2Id,
         user2Name: input.user2Name,
         lastMessage: '',
-        lastMessageAt: new Date().toISOString()
+        lastMessageAt: new Date().toISOString(),
+        hiddenFor: []
     });
     return record.id;
+}
+
+export async function hideConversationForUser(convId: string, uid: string): Promise<void> {
+    const conv = await pb.collection(CONVS_COL).getOne(convId);
+    const currentHidden: string[] = Array.isArray(conv.hiddenFor) ? conv.hiddenFor.map(String) : [];
+
+    if (currentHidden.includes(uid)) return;
+
+    currentHidden.push(uid);
+
+    await pb.collection(CONVS_COL).update(convId, { hiddenFor: currentHidden });
+
+    if (currentHidden.length >= 2) {
+        try {
+            await pb.collection(CONVS_COL).delete(convId);
+        } catch (err) {
+            console.error('[db] Failed to auto-delete fully-hidden conversation:', err);
+        }
+    }
+}
+
+export async function unhideConversationForUser(convId: string, uid: string): Promise<void> {
+    const conv = await pb.collection(CONVS_COL).getOne(convId);
+    const currentHidden: string[] = Array.isArray(conv.hiddenFor) ? conv.hiddenFor.map(String) : [];
+
+    const updated = currentHidden.filter(id => id !== uid);
+
+    await pb.collection(CONVS_COL).update(convId, { hiddenFor: updated });
 }
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
@@ -590,4 +625,384 @@ export function watchUnreadMessages(uid: string, callback: (count: number) => vo
         stopped = true;
         if (unsubscribe) unsubscribe();
     };
+}
+
+function adminMessageFromRecord(r: RecordModel): AdminMessage {
+    return {
+        id: String(r.id),
+        userId: String(r.userId),
+        userName: String(r.userName || ''),
+        userEmail: String(r.userEmail || ''),
+        itemId: String(r.itemId),
+        itemName: String(r.itemName || ''),
+        senderRole: (r.senderRole as AdminMessageRole) || 'user',
+        text: String(r.text || ''),
+        read: Boolean(r.read),
+        createdAt: toDate(r.created) ?? new Date()
+    };
+}
+
+interface SendAdminMessageInput {
+    userId: string;
+    userName: string;
+    userEmail: string;
+    itemId: string;
+    itemName: string;
+    senderRole: AdminMessageRole;
+    text: string;
+}
+
+export async function sendAdminMessage(input: SendAdminMessageInput): Promise<string> {
+    const record = await pb.collection(ADMIN_MSGS_COL).create({
+        userId: input.userId,
+        userName: input.userName,
+        userEmail: input.userEmail,
+        itemId: input.itemId,
+        itemName: input.itemName,
+        senderRole: input.senderRole,
+        text: input.text,
+        read: false
+    });
+    return record.id;
+}
+
+export async function getAdminMessagesForUser(uid: string): Promise<AdminMessage[]> {
+    const records = await pb.collection(ADMIN_MSGS_COL).getFullList({
+        filter: pb.filter('userId = {:uid}', { uid }),
+        sort: 'created'
+    });
+    return records.map(adminMessageFromRecord);
+}
+
+export async function getAdminMessagesForThread(uid: string, itemId: string): Promise<AdminMessage[]> {
+    const records = await pb.collection(ADMIN_MSGS_COL).getFullList({
+        filter: pb.filter('userId = {:uid} && itemId = {:itemId}', { uid, itemId }),
+        sort: 'created'
+    });
+    return records.map(adminMessageFromRecord);
+}
+
+export async function getAllAdminMessages(): Promise<AdminMessage[]> {
+    const records = await pb.collection(ADMIN_MSGS_COL).getFullList({
+        sort: '-created'
+    });
+    return records.map(adminMessageFromRecord);
+}
+
+export function watchAdminMessagesForUser(uid: string, callback: (msgs: AdminMessage[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const msgs = await getAdminMessagesForUser(uid);
+            if (!stopped) callback(msgs);
+        } catch (err) {
+            console.error('Failed to load admin messages:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(ADMIN_MSGS_COL)
+        .subscribe('*', (e) => {
+            const record = e.record as RecordModel | undefined;
+            if (!record || String(record.userId) === uid) {
+                load();
+            }
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime admin messages subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+export function watchAdminMessagesForThread(
+    uid: string,
+    itemId: string,
+    callback: (msgs: AdminMessage[]) => void
+): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const msgs = await getAdminMessagesForThread(uid, itemId);
+            if (!stopped) callback(msgs);
+        } catch (err) {
+            console.error('Failed to load admin thread:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(ADMIN_MSGS_COL)
+        .subscribe('*', (e) => {
+            const record = e.record as RecordModel | undefined;
+            if (!record) {
+                load();
+                return;
+            }
+            if (String(record.userId) === uid && String(record.itemId) === itemId) {
+                load();
+            }
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime admin thread subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+export function watchAllAdminMessages(callback: (msgs: AdminMessage[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const msgs = await getAllAdminMessages();
+            if (!stopped) callback(msgs);
+        } catch (err) {
+            console.error('Failed to load admin messages:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(ADMIN_MSGS_COL)
+        .subscribe('*', () => {
+            load();
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime admin messages subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+export async function markAdminThreadAsRead(uid: string, itemId: string, forRole: AdminMessageRole): Promise<void> {
+    const records = await pb.collection(ADMIN_MSGS_COL).getFullList({
+        filter: pb.filter(
+            'userId = {:uid} && itemId = {:itemId} && senderRole != {:role} && read = false',
+            { uid, itemId, role: forRole }
+        )
+    });
+    await Promise.all(
+        records.map(r => pb.collection(ADMIN_MSGS_COL).update(r.id, { read: true }))
+    );
+}
+
+export function buildAdminThreads(messages: AdminMessage[]): AdminThread[] {
+    const map = new Map<string, AdminThread>();
+
+    for (const m of messages) {
+        const key = `${m.userId}::${m.itemId}`;
+        const existing = map.get(key);
+
+        if (!existing) {
+            map.set(key, {
+                userId: m.userId,
+                userName: m.userName,
+                userEmail: m.userEmail,
+                itemId: m.itemId,
+                itemName: m.itemName,
+                lastMessage: m.text,
+                lastMessageAt: m.createdAt,
+                lastSenderRole: m.senderRole,
+                unreadCount: m.senderRole === 'user' && !m.read ? 1 : 0,
+                totalCount: 1
+            });
+        } else {
+            existing.totalCount += 1;
+            if (m.senderRole === 'user' && !m.read) {
+                existing.unreadCount += 1;
+            }
+            if (m.createdAt > existing.lastMessageAt) {
+                existing.lastMessage = m.text;
+                existing.lastMessageAt = m.createdAt;
+                existing.lastSenderRole = m.senderRole;
+            }
+        }
+    }
+
+    return Array.from(map.values()).sort(
+        (a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime()
+    );
+}
+
+export function buildUserAdminThreads(messages: AdminMessage[]): AdminThread[] {
+    const map = new Map<string, AdminThread>();
+
+    for (const m of messages) {
+        const key = m.itemId;
+        const existing = map.get(key);
+
+        if (!existing) {
+            map.set(key, {
+                userId: m.userId,
+                userName: m.userName,
+                userEmail: m.userEmail,
+                itemId: m.itemId,
+                itemName: m.itemName,
+                lastMessage: m.text,
+                lastMessageAt: m.createdAt,
+                lastSenderRole: m.senderRole,
+                unreadCount: m.senderRole === 'admin' && !m.read ? 1 : 0,
+                totalCount: 1
+            });
+        } else {
+            existing.totalCount += 1;
+            if (m.senderRole === 'admin' && !m.read) {
+                existing.unreadCount += 1;
+            }
+            if (m.createdAt > existing.lastMessageAt) {
+                existing.lastMessage = m.text;
+                existing.lastMessageAt = m.createdAt;
+                existing.lastSenderRole = m.senderRole;
+            }
+        }
+    }
+
+    return Array.from(map.values()).sort(
+        (a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime()
+    );
+}
+
+function matchFromRecord(r: RecordModel): Match {
+    return {
+        id: String(r.id),
+        lostItemId: String(r.lostItemId),
+        foundItemId: String(r.foundItemId),
+        confidenceScore: Number(r.confidenceScore) || 0,
+        matchReason: String(r.matchReason || ''),
+        status: (r.status as Match['status']) || 'pending',
+        notifiedAt: toDate(r.notifiedAt),
+        createdAt: toDate(r.created) ?? new Date()
+    };
+}
+
+export async function saveMatch(
+    lostItemId: string,
+    foundItemId: string,
+    confidenceScore: number,
+    matchReason: string
+): Promise<string> {
+    const existing = await pb.collection(MATCHES_COL).getFullList({
+        filter: pb.filter(
+            '(lostItemId = {:lost} && foundItemId = {:found}) || (lostItemId = {:found} && foundItemId = {:lost})',
+            { lost: lostItemId, found: foundItemId }
+        )
+    });
+
+    if (existing.length > 0) return existing[0].id;
+
+    const record = await pb.collection(MATCHES_COL).create({
+        lostItemId,
+        foundItemId,
+        confidenceScore: Math.round(confidenceScore),
+        matchReason,
+        status: 'pending'
+    });
+
+    return record.id;
+}
+
+export async function getMatchesForItem(itemId: string): Promise<Match[]> {
+    const records = await pb.collection(MATCHES_COL).getFullList({
+        filter: pb.filter('lostItemId = {:id} || foundItemId = {:id}', { id: itemId }),
+        sort: '-confidenceScore'
+    });
+    return records.map(matchFromRecord);
+}
+
+export async function getAllMatches(): Promise<Match[]> {
+    const records = await pb.collection(MATCHES_COL).getFullList({
+        sort: '-confidenceScore'
+    });
+    return records.map(matchFromRecord);
+}
+
+export async function confirmMatch(matchId: string): Promise<void> {
+    await pb.collection(MATCHES_COL).update(matchId, { status: 'confirmed' });
+}
+
+export async function rejectMatch(matchId: string): Promise<void> {
+    await pb.collection(MATCHES_COL).update(matchId, { status: 'rejected' });
+}
+
+export async function markMatchCompleted(matchId: string): Promise<void> {
+    await pb.collection(MATCHES_COL).update(matchId, { status: 'completed' });
+}
+
+export async function markItemReturned(itemId: string): Promise<void> {
+    await pb.collection(ITEMS_COL).update(itemId, {
+        recovered: true,
+        returnedAt: new Date().toISOString()
+    });
+}
+
+export async function updateUserAvatar(uid: string, file: File): Promise<string> {
+    const form = new FormData();
+    form.append('avatar', file);
+
+    const record = await pb.collection('users').update(uid, form);
+    return record.id;
+}
+
+export async function getUserById(uid: string): Promise<{ fullname: string; avatar: string } | null> {
+    try {
+        const rec = await pb.collection('users').getOne(uid);
+        return {
+            fullname: (rec.fullname as string) || (rec.email as string),
+            avatar: rec.avatar
+                ? pb.files.getURL(rec, rec.avatar as string, { thumb: '80x80' })
+                : ''
+        };
+    } catch {
+        return null;
+    }
+}
+
+export async function getUsersByIds(
+    uids: string[]
+): Promise<Map<string, { fullname: string; avatar: string }>> {
+    const map = new Map<string, { fullname: string; avatar: string }>();
+    if (uids.length === 0) return map;
+
+    try {
+        const unique = [...new Set(uids)].filter(Boolean);
+        if (unique.length === 0) return map;
+
+        const filter = unique.map(id => `id = "${id}"`).join(' || ');
+        const records = await pb.collection('users').getFullList({ filter });
+
+        for (const rec of records) {
+            map.set(rec.id, {
+                fullname: (rec.fullname as string) || (rec.email as string),
+                avatar: rec.avatar
+                    ? pb.files.getURL(rec, rec.avatar as string, { thumb: '80x80' })
+                    : ''
+            });
+        }
+    } catch (err) {
+        console.error('Failed to load users:', err);
+    }
+
+    return map;
 }

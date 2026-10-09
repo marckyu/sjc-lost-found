@@ -2,11 +2,16 @@ import './pb';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile, signOut, signIn, signUp } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
-import { watchNotifications } from './db';
+import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
+import { initAvatarUploader } from './profile';
 import type { User, Notification } from './types';
 
 let currentUser: User | null = null;
 let notifUnsubscribe: (() => void) | null = null;
+let msgUnreadUnsub: (() => void) | null = null;
+let adminMsgUnreadUnsub: (() => void) | null = null;
+let userMsgUnread = 0;
+let adminMsgUnread = 0;
 
 function isProtectedPage(): boolean {
     return /\/(admin|report|messages)\.html$/.test(window.location.pathname);
@@ -47,11 +52,100 @@ function updateBellBadge(notifs: Notification[]): void {
     }
 }
 
+function injectMsgBadgeStyles(): void {
+    if (document.getElementById('sjc-msg-badge-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'sjc-msg-badge-styles';
+    style.textContent = `
+        .nav-msg-badge {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-50%);
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            display: grid;
+            place-items: center;
+            border-radius: 10px;
+            color: #fff;
+            background: #dc2626;
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
+            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+        }
+        .bn-item { position: relative; }
+        .bn-msg-badge {
+            position: absolute;
+            top: 4px;
+            right: calc(50% - 22px);
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            color: #fff;
+            background: #dc2626;
+            font-size: 9px;
+            font-weight: 800;
+            line-height: 1;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function attachMsgBadges(): void {
+    document.querySelectorAll<HTMLAnchorElement>('a[href="messages.html"].dashboard').forEach(link => {
+        if (link.querySelector('.nav-msg-badge')) return;
+        if (getComputedStyle(link).position === 'static') {
+            link.style.position = 'relative';
+        }
+        const badge = document.createElement('span');
+        badge.className = 'nav-msg-badge';
+        badge.dataset.msgBadge = 'dropdown';
+        badge.hidden = true;
+        badge.textContent = '0';
+        link.appendChild(badge);
+    });
+
+    document.querySelectorAll<HTMLAnchorElement>('.bn-item[data-page="messages"]').forEach(item => {
+        if (item.querySelector('.bn-msg-badge')) return;
+        const badge = document.createElement('span');
+        badge.className = 'bn-msg-badge';
+        badge.dataset.msgBadge = 'bottom';
+        badge.hidden = true;
+        badge.textContent = '0';
+        item.appendChild(badge);
+    });
+}
+
+function setMsgBadge(count: number): void {
+    document.querySelectorAll<HTMLElement>('[data-msg-badge]').forEach(b => {
+        b.textContent = String(count);
+        b.hidden = count === 0;
+    });
+}
+
+function refreshMsgBadge(): void {
+    setMsgBadge(userMsgUnread + adminMsgUnread);
+}
+
 function bindBell(): void {
     document.getElementById('navBell')?.addEventListener('click', (e) => {
         e.stopPropagation();
         window.location.href = 'notifications.html';
     });
+}
+
+function renderAvatar(user: User): string {
+    if (user.avatar) {
+        return `<img src="${user.avatar}" alt="${escapeHtml(user.fullName)}">`;
+    }
+    return escapeHtml(user.fullName.charAt(0).toUpperCase());
 }
 
 function updateNavAuth(user: User | null): void {
@@ -71,10 +165,14 @@ function updateNavAuth(user: User | null): void {
                 </button>
                 <div class="user-menu" id="userMenu">
                     <button class="user-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false">
-                        <span class="user-avatar">${escapeHtml(user.fullName.charAt(0).toUpperCase())}</span>
+                        <span class="user-avatar">${renderAvatar(user)}</span>
                         <span class="user-name">${escapeHtml(user.fullName)}</span>
+                        <svg class="user-menu-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
                     </button>
                     <div class="dropdown-menu" role="menu">
+                        <a href="javascript:void(0)" data-change-avatar class="dashboard" role="menuitem">Change Photo</a>
                         <a href="messages.html" class="dashboard" role="menuitem">Messages</a>
                         ${isAdmin ? '<a href="admin.html" class="dashboard" role="menuitem">Dashboard</a>' : ''}
                         <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
@@ -96,6 +194,11 @@ function updateNavAuth(user: User | null): void {
             );
         });
 
+        navAuth.querySelector('[data-change-avatar]')?.addEventListener('click', async () => {
+            const { openAvatarModal } = await import('./profile');
+            openAvatarModal();
+        });
+
         navAuth.querySelector('[data-signout]')?.addEventListener('click', async () => {
             await signOut();
             if (isProtectedPage()) {
@@ -105,6 +208,7 @@ function updateNavAuth(user: User | null): void {
             showToast('Signed out.', 'info');
         });
 
+        attachMsgBadges();
         applyRoleUI(user);
     } else {
         navAuth.innerHTML = `
@@ -305,6 +409,17 @@ onAuthChange(async (fbUser) => {
         notifUnsubscribe();
         notifUnsubscribe = null;
     }
+    if (msgUnreadUnsub) {
+        msgUnreadUnsub();
+        msgUnreadUnsub = null;
+    }
+    if (adminMsgUnreadUnsub) {
+        adminMsgUnreadUnsub();
+        adminMsgUnreadUnsub = null;
+    }
+    userMsgUnread = 0;
+    adminMsgUnread = 0;
+    refreshMsgBadge();
 
     if (fbUser) {
         currentUser = await getUserProfile(fbUser.uid);
@@ -315,6 +430,23 @@ onAuthChange(async (fbUser) => {
             notifUnsubscribe = watchNotifications(uid, (notifs) => {
                 updateBellBadge(notifs);
             });
+
+            msgUnreadUnsub = watchUnreadMessages(uid, (count) => {
+                userMsgUnread = count;
+                refreshMsgBadge();
+            });
+
+            if (currentUser.role === 'admin') {
+                adminMsgUnreadUnsub = watchAllAdminMessages((msgs) => {
+                    adminMsgUnread = msgs.filter(m => m.senderRole === 'user' && !m.read).length;
+                    refreshMsgBadge();
+                });
+            } else {
+                adminMsgUnreadUnsub = watchAdminMessagesForUser(uid, (msgs) => {
+                    adminMsgUnread = msgs.filter(m => m.senderRole === 'admin' && !m.read).length;
+                    refreshMsgBadge();
+                });
+            }
         }
     } else {
         currentUser = null;
@@ -322,6 +454,7 @@ onAuthChange(async (fbUser) => {
     }
 });
 
+injectMsgBadgeStyles();
 bindAuthButtons();
 bindTabs();
 bindPasswordToggles();
@@ -329,3 +462,40 @@ bindForms();
 bindModalClose();
 bindHamburger();
 bindRequireAuth();
+initAvatarUploader();
+
+function updateBottomNav(): void {
+    const path = window.location.pathname;
+    let currentPage = 'index';
+    if (path.includes('items.html')) currentPage = 'items';
+    else if (path.includes('report.html')) currentPage = 'report';
+    else if (path.includes('messages.html')) currentPage = 'messages';
+    else if (path.includes('admin.html')) currentPage = 'admin';
+    else if (path.includes('index.html') || path === '/' || path.endsWith('/')) currentPage = 'index';
+
+    document.querySelectorAll<HTMLElement>('.bn-item[data-page]').forEach(item => {
+        item.classList.toggle('is-active', item.dataset.page === currentPage);
+    });
+}
+
+function bindBottomNav(): void {
+    const profileBtn = document.getElementById('bnProfileBtn');
+    if (!profileBtn) return;
+
+    profileBtn.addEventListener('click', () => {
+        if (!currentUser) {
+            showToast('Please Sign In first.', 'warning');
+            setTimeout(() => openAuthModal('signin'), 400);
+            return;
+        }
+
+        const userMenu = document.getElementById('userMenu');
+        if (userMenu) {
+            userMenu.classList.toggle('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+}
+
+updateBottomNav();
+bindBottomNav();

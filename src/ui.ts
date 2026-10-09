@@ -31,12 +31,10 @@ export function openModal(id: string): void {
     if (!el) return;
     el.hidden = false;
     document.body.style.overflow = 'hidden';
-    setTimeout(() => {
-        const first = el.querySelector<HTMLInputElement>(
-            'input:not([readonly]), textarea'
-        );
-        first?.focus();
-    }, 100);
+    const first = el.querySelector<HTMLInputElement>(
+        'input:not([readonly]), textarea'
+    );
+    first?.focus();
 }
 
 export function closeModal(id: string): void {

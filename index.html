@@ -14,6 +14,10 @@
     <meta name="msapplication-TileColor" content="#166534">
     <meta name="msapplication-tap-highlight" content="no">
     <title>SJC Campus Lost &amp; Found</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="/sjc-logo-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/sjc-logo-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/sjc-logo-192.png">
+    <link rel="manifest" href="/manifest.json">
     <script>
     (function () {
         try {
@@ -32,15 +36,15 @@
         } catch (e) { }
     })();
     </script>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <link rel="stylesheet" href="/index.css">
-    <script src="https://unpkg.com/lucide@latest" defer></script>
     <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
     <header>
         <a href="index.html" class="brand" aria-label="SJC Campus Lost and Found home">
-            <span class="sjc-logo" aria-hidden="true">SJC</span>
+            <span class="sjc-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
             <span class="brand-copy">
                 <strong>Campus Lost &amp; Found</strong>
                 <small>Saint Jude College Manila</small>
@@ -70,7 +74,13 @@
                 <a href="report.html" class="button button-secondary" data-require-auth>Report an Item</a>
                 <a href="items.html" class="button button-secondary">Browse Items</a>
             </div>
-            <div class="hero-note"><i data-lucide="shield-check" aria-hidden="true"></i> For the SJC community</div>
+            <div class="hero-note">
+                <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+                    <path d="m9 12 2 2 4-4"></path>
+                </svg>
+                For the SJC community
+            </div>
         </section>
 
         <section class="features">
@@ -80,19 +90,36 @@
             </div>
             <div class="card-grid">
                 <article class="card">
-                    <div class="icon-wrap"><i data-lucide="search" aria-hidden="true"></i></div>
+                    <div class="icon-wrap">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.3-4.3"></path>
+                        </svg>
+                    </div>
                     <h3>Find an Item</h3>
                     <p>Search reported lost and found items by category, location, and date.</p>
                     <a href="items.html" class="text-link">Browse items →</a>
                 </article>
                 <article class="card">
-                    <div class="icon-wrap"><i data-lucide="megaphone" aria-hidden="true"></i></div>
+                    <div class="icon-wrap">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m3 11 18-5v12L3 14v-3z"></path>
+                            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+                        </svg>
+                    </div>
                     <h3>Report an Item</h3>
                     <p>Submit details about something you lost or found on campus.</p>
                     <a href="report.html" class="text-link" data-require-auth>Make a report →</a>
                 </article>
                 <article class="card">
-                    <div class="icon-wrap"><i data-lucide="users" aria-hidden="true"></i></div>
+                    <div class="icon-wrap">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
                     <h3>Stay Connected</h3>
                     <p>Sign in to track your reports and manage your account securely.</p>
                     <button class="text-link text-button" type="button" data-open-auth="signup">Create an account →</button>
@@ -113,7 +140,7 @@
         <div class="modal-content">
             <button class="close-btn" id="closeAuthBtn" type="button" aria-label="Close dialog">&times;</button>
             <div class="modal-intro">
-                <span class="modal-logo">SJC</span>
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
                 <div>
                     <h2 id="modalTitle">Welcome back</h2>
                     <p id="modalSubtitle">Sign in to manage your reports.</p>
@@ -177,6 +204,84 @@
         </div>
     </div>
 
+    <div class="modal" id="avatarModal" role="dialog" aria-modal="true" aria-labelledby="avatarTitle" hidden>
+        <div class="modal-content avatar-modal-content">
+            <button class="close-btn" id="closeAvatarBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="avatar-modal-header">
+                <div class="avatar-modal-title-wrap">
+                    <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
+                    <div>
+                        <h2 id="avatarTitle">Change Profile Picture</h2>
+                        <p>Upload and crop your photo (max 5MB).</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="avatar-modal-body">
+                <div id="avatarPreviewStage">
+                    <div id="avatarPreview" class="avatar-preview"></div>
+                    <input type="file" id="avatarInput" accept="image/*" hidden>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarChooseBtn" type="button">Choose Photo</button>
+                        <button class="av-btn av-btn-danger" id="avatarRemoveBtn" type="button">Remove</button>
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" type="button" data-close-avatar>Cancel</button>
+                        <button class="av-btn av-btn-solid" id="avatarSaveBtn" type="button">Save</button>
+                    </div>
+                </div>
+
+                <div id="avatarCropArea" hidden>
+                    <div class="avatar-crop-wrapper">
+                        <img id="avatarCropImage" src="" alt="Crop">
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarCancelCrop" type="button">Back</button>
+                        <button class="av-btn av-btn-solid" id="avatarApplyCrop" type="button">Apply Crop</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav" aria-label="Mobile navigation">
+        <a href="index.html" class="bn-item" data-page="index">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>Home</span>
+        </a>
+        <a href="items.html" class="bn-item" data-page="items">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            <span>Browse</span>
+        </a>
+        <a href="report.html" class="bn-item" data-page="report" data-require-auth>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            <span>Report</span>
+        </a>
+        <a href="messages.html" class="bn-item" data-page="messages">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Messages</span>
+        </a>
+        <button type="button" class="bn-item" id="bnProfileBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M20 21a8 8 0 0 0-16 0"></path>
+            </svg>
+            <span>Profile</span>
+        </button>
+    </nav>
+
     <div class="toast" id="toast"></div>
 </body>
-</html> 
+</html>

@@ -11,12 +11,15 @@ export type ItemCategory =
     | 'others';
 
 export type ClaimStatus = 'pending' | 'approved' | 'rejected';
+export type AdminMessageRole = 'user' | 'admin';
+export type MatchStatus = 'pending' | 'confirmed' | 'rejected' | 'completed';
 
 export interface User {
     uid: string;
     fullName: string;
     email: string;
     role: UserRole;
+    avatar: string;
     createdAt: Date;
 }
 
@@ -30,11 +33,14 @@ export interface Item {
     location: string;
     description: string;
     status: ItemStatus;
+    date: Date | null;
     verified: boolean;
     recovered: boolean;
     recoveredAt: Date | null;
     recoveredBy: string | null;
+    returnedAt: Date | null;
     imageUrls: string[];
+    fullImageUrls: string[];
     createdAt: Date;
     verifiedAt: Date | null;
 }
@@ -75,6 +81,7 @@ export interface Conversation {
     lastMessage: string | null;
     lastMessageAt: Date | null;
     createdAt: Date;
+    hiddenFor: string[];
 }
 
 export interface Message {
@@ -85,6 +92,43 @@ export interface Message {
     receiverId: string;
     text: string;
     read: boolean;
+    createdAt: Date;
+}
+
+export interface AdminMessage {
+    id: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    itemId: string;
+    itemName: string;
+    senderRole: AdminMessageRole;
+    text: string;
+    read: boolean;
+    createdAt: Date;
+}
+
+export interface AdminThread {
+    userId: string;
+    userName: string;
+    userEmail: string;
+    itemId: string;
+    itemName: string;
+    lastMessage: string;
+    lastMessageAt: Date;
+    lastSenderRole: AdminMessageRole;
+    unreadCount: number;
+    totalCount: number;
+}
+
+export interface Match {
+    id: string;
+    lostItemId: string;
+    foundItemId: string;
+    confidenceScore: number;
+    matchReason: string;
+    status: MatchStatus;
+    notifiedAt: Date | null;
     createdAt: Date;
 }
 

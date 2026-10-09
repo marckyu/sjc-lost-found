@@ -11,6 +11,10 @@
     <meta name="msapplication-TileColor" content="#166534">
     <meta name="msapplication-tap-highlight" content="no">
     <title>Lost &amp; Found Items | SJC Campus Lost &amp; Found</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="/sjc-logo-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/sjc-logo-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/sjc-logo-192.png">
+    <link rel="manifest" href="/manifest.json">
     <script>
     (function () {
         try {
@@ -28,14 +32,15 @@
         } catch (e) { }
     })();
     </script>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <link rel="stylesheet" href="/items.css">
     <script type="module" src="/src/items.ts"></script>
 </head>
 <body>
     <header>
         <a href="index.html" class="brand">
-            <span class="sjc-logo">SJC</span>
+            <span class="sjc-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
             <span class="brand-copy">
                 <strong>Campus Lost &amp; Found</strong>
                 <small>Saint Jude College Manila</small>
@@ -61,6 +66,22 @@
             <h2>Lost &amp; Found Items</h2>
             <p>Browse all reported items on campus</p>
         </div>
+
+        <section class="matches-panel" id="matchesPanel" hidden>
+            <div class="matches-heading">
+                <div>
+                    <h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                        </svg>
+                        AI Potential Matches
+                    </h3>
+                    <p>AI found similar items to your reports. Confirm if these are yours.</p>
+                </div>
+                <span class="matches-badge" id="matchesCount">0</span>
+            </div>
+            <div class="matches-grid" id="matchesGrid"></div>
+        </section>
 
         <section class="search-section">
             <input type="text" id="searchInput" placeholder="Search for items...">
@@ -92,7 +113,7 @@
         <div class="modal-content claim-modal-content">
             <button class="close-btn" id="closeClaimBtn" type="button" aria-label="Close dialog">&times;</button>
             <div class="modal-intro">
-                <span class="modal-logo">SJC</span>
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
                 <div>
                     <h2 id="claimTitle">Claim This Item</h2>
                     <p id="claimSubtitle">Provide proof of ownership to claim this item.</p>
@@ -103,14 +124,36 @@
                 <div class="form-group">
                     <label for="claimContact">Contact Number *</label>
                     <input id="claimContact" type="tel" placeholder="e.g., 09171234567" required>
-                    <small class="guide">Para makontak ka ng admin</small>
+                    <small class="guide">So the admin can contact you</small>
                 </div>
                 <div class="form-group">
                     <label for="claimProof">Proof of Ownership *</label>
                     <textarea id="claimProof" placeholder="Describe specific details about the item — color, marks, contents, when/where you lost it, etc." required></textarea>
-                    <small class="guide">Ilarawan ang detalye na ikaw lang ang nakakaalam</small>
+                    <small class="guide">Describe details that only the real owner would know</small>
                 </div>
                 <button class="submit-button" type="submit">Submit Claim</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="askAdminModal" role="dialog" aria-modal="true" aria-labelledby="askAdminTitle" hidden>
+        <div class="modal-content claim-modal-content">
+            <button class="close-btn" id="closeAskAdminBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
+                <div>
+                    <h2 id="askAdminTitle">Ask Admin</h2>
+                    <p id="askAdminSubtitle">Send a question or proof to the admin.</p>
+                </div>
+            </div>
+            <div class="claim-item-preview" id="askAdminItemPreview"></div>
+            <form id="askAdminForm" class="auth-form" novalidate>
+                <div class="form-group">
+                    <label for="askAdminText">Your Message *</label>
+                    <textarea id="askAdminText" placeholder="Ask a question or provide proof of ownership..." required maxlength="1000"></textarea>
+                    <small class="guide">Admin will reply in your Messages inbox</small>
+                </div>
+                <button class="submit-button" type="submit">Send to Admin</button>
             </form>
         </div>
     </div>
@@ -119,7 +162,7 @@
         <div class="modal-content">
             <button class="close-btn" id="closeAuthBtn" type="button" aria-label="Close dialog">&times;</button>
             <div class="modal-intro">
-                <span class="modal-logo">SJC</span>
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
                 <div>
                     <h2 id="modalTitle">Welcome back</h2>
                     <p id="modalSubtitle">Sign in to manage your reports.</p>
@@ -134,7 +177,6 @@
                 <div class="form-group">
                     <label for="signinEmail">PHINMAEd Email</label>
                     <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
-                    <small class="guide">Use your official PHINMAEd email</small>
                 </div>
                 <div class="form-group">
                     <label for="signinPassword">Password</label>
@@ -142,7 +184,6 @@
                         <input id="signinPassword" type="password" placeholder="Enter your password" required>
                         <button class="toggle-password" type="button" data-toggle-password="signinPassword">Show</button>
                     </div>
-                    <small class="guide">Minimum of 6 characters</small>
                 </div>
                 <button class="submit-button" type="submit">Sign In</button>
                 <p class="form-footer">
@@ -154,12 +195,10 @@
                 <div class="form-group">
                     <label for="signupName">Full Name</label>
                     <input id="signupName" type="text" placeholder="Juan Dela Cruz" required>
-                    <small class="guide">Enter your complete name</small>
                 </div>
                 <div class="form-group">
                     <label for="signupEmail">PHINMAEd Email</label>
                     <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
-                    <small class="guide">Must end with @phinmaed.com</small>
                 </div>
                 <div class="form-group">
                     <label for="signupPassword">Password</label>
@@ -167,12 +206,10 @@
                         <input id="signupPassword" type="password" placeholder="Create a password" required>
                         <button class="toggle-password" type="button" data-toggle-password="signupPassword">Show</button>
                     </div>
-                    <small class="guide">At least 6 characters</small>
                 </div>
                 <div class="form-group">
                     <label for="signupConfirmPassword">Confirm Password</label>
                     <input id="signupConfirmPassword" type="password" placeholder="Re-enter your password" required>
-                    <small class="guide">Type the same password again</small>
                 </div>
                 <button class="submit-button" type="submit">Create Account</button>
                 <p class="form-footer">
@@ -183,10 +220,88 @@
         </div>
     </div>
 
+    <div class="modal" id="avatarModal" role="dialog" aria-modal="true" aria-labelledby="avatarTitle" hidden>
+        <div class="modal-content avatar-modal-content">
+            <button class="close-btn" id="closeAvatarBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="avatar-modal-header">
+                <div class="avatar-modal-title-wrap">
+                    <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
+                    <div>
+                        <h2 id="avatarTitle">Change Profile Picture</h2>
+                        <p>Upload and crop your photo (max 5MB).</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="avatar-modal-body">
+                <div id="avatarPreviewStage">
+                    <div id="avatarPreview" class="avatar-preview"></div>
+                    <input type="file" id="avatarInput" accept="image/*" hidden>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarChooseBtn" type="button">Choose Photo</button>
+                        <button class="av-btn av-btn-danger" id="avatarRemoveBtn" type="button">Remove</button>
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" type="button" data-close-avatar>Cancel</button>
+                        <button class="av-btn av-btn-solid" id="avatarSaveBtn" type="button">Save</button>
+                    </div>
+                </div>
+
+                <div id="avatarCropArea" hidden>
+                    <div class="avatar-crop-wrapper">
+                        <img id="avatarCropImage" src="" alt="Crop">
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarCancelCrop" type="button">Back</button>
+                        <button class="av-btn av-btn-solid" id="avatarApplyCrop" type="button">Apply Crop</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="image-modal" id="imageModal">
         <button class="image-modal-close" type="button" aria-label="Close">&times;</button>
         <img id="imageModalImg" src="" alt="Full size image">
     </div>
+
+    <nav class="bottom-nav" aria-label="Mobile navigation">
+        <a href="index.html" class="bn-item" data-page="index">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>Home</span>
+        </a>
+        <a href="items.html" class="bn-item" data-page="items">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
+            <span>Browse</span>
+        </a>
+        <a href="report.html" class="bn-item" data-page="report" data-require-auth>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            <span>Report</span>
+        </a>
+        <a href="messages.html" class="bn-item" data-page="messages">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Messages</span>
+        </a>
+        <button type="button" class="bn-item" id="bnProfileBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="5"></circle>
+                <path d="M20 21a8 8 0 0 0-16 0"></path>
+            </svg>
+            <span>Profile</span>
+        </button>
+    </nav>
 
     <div class="toast" id="toast"></div>
 </body>

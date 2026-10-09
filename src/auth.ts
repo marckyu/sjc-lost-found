@@ -12,7 +12,6 @@ export interface AuthUser {
     uid: string;
 }
 
-
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
     const d = new Date(value.replace(' ', 'T'));
@@ -25,6 +24,9 @@ function toUser(rec: RecordModel): User {
         fullName: (rec.fullname as string) || String(rec.email).split('@')[0],
         email: rec.email as string,
         role: rec.role === 'admin' ? 'admin' : 'user',
+        avatar: rec.avatar
+            ? pb.files.getURL(rec, rec.avatar as string, { thumb: '100x100' })
+            : '',
         createdAt: toDate(rec.created) ?? new Date()
     };
 }
@@ -32,7 +34,6 @@ function toUser(rec: RecordModel): User {
 function currentRecord(): RecordModel | null {
     return pb.authStore.isValid ? pb.authStore.record : null;
 }
-
 
 let refreshOnce: Promise<void> | null = null;
 
@@ -49,8 +50,6 @@ function refreshSession(): Promise<void> {
     }
     return refreshOnce;
 }
-
-
 
 export async function signUp(
     fullName: string,
@@ -87,6 +86,7 @@ export async function signUp(
                 fullName,
                 email,
                 role: 'user',
+                avatar: '',
                 createdAt: new Date()
             }
         };
@@ -148,7 +148,6 @@ export async function signOut(): Promise<void> {
     pb.authStore.clear();
 }
 
-
 export function onAuthChange(callback: (user: AuthUser | null) => void): () => void {
     let lastUid: string | null | undefined;
 
@@ -159,7 +158,6 @@ export function onAuthChange(callback: (user: AuthUser | null) => void): () => v
         callback(uid ? { uid } : null);
     }, true);
 }
-
 
 export async function getCurrentUser(): Promise<User | null> {
     await refreshSession();

@@ -1,15 +1,22 @@
-const CACHE_NAME = 'sjc-lost-found-v2';
+const CACHE_NAME = 'sjc-lost-found-v3';
 const urlsToCache = [
     '/',
     '/index.html',
     '/items.html',
     '/report.html',
     '/admin.html',
+    '/messages.html',
+    '/notifications.html',
     '/index.css',
     '/items.css',
     '/report.css',
     '/admin.css',
+    '/messages.css',
+    '/notifications.css',
     '/manifest.json',
+    '/sjc-logo.png',
+    '/sjc-logo-192.png',
+    '/sjc-logo-512.png',
     '/saintjude.jpg'
 ];
 
@@ -51,6 +58,7 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.startsWith('/api/')) return;
     if (url.pathname.startsWith('/_/')) return;
     if (url.pathname.startsWith('/src/')) return;
+
 
     event.respondWith(
         caches.match(event.request).then((cached) => {

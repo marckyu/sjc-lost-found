@@ -11,6 +11,10 @@
     <meta name="msapplication-TileColor" content="#166534">
     <meta name="msapplication-tap-highlight" content="no">
     <title>Notifications | SJC Campus Lost &amp; Found</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="/sjc-logo-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/sjc-logo-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/sjc-logo-192.png">
+    <link rel="manifest" href="/manifest.json">
     <script>
     (function () {
         try {
@@ -28,7 +32,8 @@
         } catch (e) { }
     })();
     </script>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <link rel="stylesheet" href="/notifications.css">
     <script src="https://unpkg.com/lucide@latest" defer></script>
     <script type="module" src="/src/notifications.ts"></script>
@@ -36,7 +41,7 @@
 <body>
     <header>
         <a href="index.html" class="brand">
-            <span class="sjc-logo">SJC</span>
+            <span class="sjc-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
             <span class="brand-copy">
                 <strong>Campus Lost &amp; Found</strong>
                 <small>Saint Jude College Manila</small>
@@ -78,61 +83,43 @@
 
     <footer><p>&copy; 2026 SJC Campus Lost &amp; Found. All rights reserved.</p></footer>
 
-    <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
-        <div class="modal-content">
-            <button class="close-btn" id="closeAuthBtn" type="button" aria-label="Close dialog">&times;</button>
-            <div class="modal-intro">
-                <span class="modal-logo">SJC</span>
-                <div>
-                    <h2 id="modalTitle">Welcome back</h2>
-                    <p id="modalSubtitle">Sign in to manage your reports.</p>
-                </div>
-            </div>
-            <div class="auth-message" id="authMessage" role="alert"></div>
-            <div class="auth-tabs">
-                <button class="auth-tab active" id="signinTab" type="button" data-auth-tab="signin">Sign In</button>
-                <button class="auth-tab" id="signupTab" type="button" data-auth-tab="signup">Sign Up</button>
-            </div>
-            <form id="signinForm" class="auth-form" novalidate>
-                <div class="form-group">
-                    <label for="signinEmail">PHINMAEd Email</label>
-                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
-                </div>
-                <div class="form-group">
-                    <label for="signinPassword">Password</label>
-                    <div class="password-wrapper">
-                        <input id="signinPassword" type="password" placeholder="Enter your password" required>
-                        <button class="toggle-password" type="button" data-toggle-password="signinPassword">Show</button>
+    <div class="modal" id="avatarModal" role="dialog" aria-modal="true" aria-labelledby="avatarTitle" hidden>
+        <div class="modal-content avatar-modal-content">
+            <button class="close-btn" id="closeAvatarBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="avatar-modal-header">
+                <div class="avatar-modal-title-wrap">
+                    <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
+                    <div>
+                        <h2 id="avatarTitle">Change Profile Picture</h2>
+                        <p>Upload and crop your photo (max 5MB).</p>
                     </div>
                 </div>
-                <button class="submit-button" type="submit">Sign In</button>
-                <p class="form-footer">
-                    Can't sign in?
-                    <button type="button" class="inline-button" data-auth-tab="signup">Create an account</button>
-                </p>
-            </form>
-            <form id="signupForm" class="auth-form" hidden novalidate>
-                <div class="form-group">
-                    <label for="signupName">Full Name</label>
-                    <input id="signupName" type="text" placeholder="Juan Dela Cruz" required>
-                </div>
-                <div class="form-group">
-                    <label for="signupEmail">PHINMAEd Email</label>
-                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
-                </div>
-                <div class="form-group">
-                    <label for="signupPassword">Password</label>
-                    <div class="password-wrapper">
-                        <input id="signupPassword" type="password" placeholder="Create a password" required>
-                        <button class="toggle-password" type="button" data-toggle-password="signupPassword">Show</button>
+            </div>
+
+            <div class="avatar-modal-body">
+                <div id="avatarPreviewStage">
+                    <div id="avatarPreview" class="avatar-preview"></div>
+                    <input type="file" id="avatarInput" accept="image/*" hidden>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarChooseBtn" type="button">Choose Photo</button>
+                        <button class="av-btn av-btn-danger" id="avatarRemoveBtn" type="button">Remove</button>
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" type="button" data-close-avatar>Cancel</button>
+                        <button class="av-btn av-btn-solid" id="avatarSaveBtn" type="button">Save</button>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="signupConfirmPassword">Confirm Password</label>
-                    <input id="signupConfirmPassword" type="password" placeholder="Re-enter your password" required>
+
+                <div id="avatarCropArea" hidden>
+                    <div class="avatar-crop-wrapper">
+                        <img id="avatarCropImage" src="" alt="Crop">
+                    </div>
+                    <div class="avatar-actions">
+                        <button class="av-btn av-btn-outline" id="avatarCancelCrop" type="button">Back</button>
+                        <button class="av-btn av-btn-solid" id="avatarApplyCrop" type="button">Apply Crop</button>
+                    </div>
                 </div>
-                <button class="submit-button" type="submit">Create Account</button>
-            </form>
+            </div>
         </div>
     </div>
 
