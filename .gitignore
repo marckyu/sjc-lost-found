@@ -34,3 +34,11 @@ coverage/
 .tmp/
 temp/
 *.tmp
+
+# PocketBase binary (32MB, download separately from pocketbase.io)
+pocketbase/pocketbase.exe
+pocketbase/pocketbase
+pocketbase/*.exe
+pocketbase/*.db
+pocketbase/*.db-shm
+pocketbase/*.db-wal
