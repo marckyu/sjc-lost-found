@@ -4,7 +4,25 @@ import { onAuthChange, getUserProfile, signOut, signIn, signUp } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
 import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
 import { initAvatarUploader } from './profile';
+import { initSync } from './offline/sync';
+import { initOfflineIndicator, pulseSync } from './offline/indicator';
 import type { User, Notification } from './types';
+
+const __originalConsoleError = console.error.bind(console);
+console.error = (...args: any[]) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    const err = args[1];
+    if (err && err.status === 0) return;
+    const msg = String(err?.message || '').toLowerCase();
+    if (
+        msg.includes('fetch') ||
+        msg.includes('network') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('err_internet') ||
+        msg.includes('clientresponseerror')
+    ) return;
+    __originalConsoleError(...args);
+};
 
 let currentUser: User | null = null;
 let notifUnsubscribe: (() => void) | null = null;
@@ -283,6 +301,8 @@ function bindForms(): void {
         const email = (document.getElementById('signinEmail') as HTMLInputElement).value.trim();
         const password = (document.getElementById('signinPassword') as HTMLInputElement).value;
 
+        pulseSync(900);
+
         const result = await signIn(email, password);
 
         if (result.success && result.user) {
@@ -308,6 +328,8 @@ function bindForms(): void {
         const email = (document.getElementById('signupEmail') as HTMLInputElement).value.trim();
         const password = (document.getElementById('signupPassword') as HTMLInputElement).value;
         const confirmPassword = (document.getElementById('signupConfirmPassword') as HTMLInputElement).value;
+
+        pulseSync(900);
 
         const result = await signUp(fullName, email, password, confirmPassword);
 
@@ -499,3 +521,6 @@ function bindBottomNav(): void {
 
 updateBottomNav();
 bindBottomNav();
+
+initSync();
+initOfflineIndicator();

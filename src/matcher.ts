@@ -2,7 +2,9 @@ import { getAllItems, saveMatch, sendNotification } from './db';
 import { findMatches, MATCH_THRESHOLD, type MatchResult } from './matching';
 import type { Item } from './types';
 
-const PYTHON_SERVICE_URL = 'http://localhost:5000';
+const PYTHON_SERVICE_URL =
+    (import.meta.env.VITE_MATCHER_URL as string | undefined) ||
+    'http://localhost:5000';
 
 function buildReason(result: MatchResult, imageScore?: number): string {
     const parts: string[] = [];
@@ -50,7 +52,7 @@ async function compareItemImages(item1: Item, item2: Item): Promise<number> {
         const data: ImageCompareResponse = await response.json();
         return data.similarity || 0;
     } catch (err) {
-        console.warn('[matcher] Image comparison failed (Python service offline?):', err);
+        console.warn('[matcher] Image comparison failed:', err);
         return 0;
     }
 }

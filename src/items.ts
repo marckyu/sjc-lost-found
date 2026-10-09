@@ -1,9 +1,10 @@
 import './main';
 import {
-    watchItems, createClaim, getClaimsByUser, sendAdminMessage, getUsersByIds,
+    watchItems, getClaimsByUser, getUsersByIds,
     getAllMatches, confirmMatch, rejectMatch, createConversation,
     markMatchCompleted, markItemReturned
 } from './db';
+import { createClaimOffline, sendAdminMessageOffline } from './offline/wrappers';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile } from './auth';
 import { showToast, escapeHtml, formatDate, setButtonLoading, openModal, closeModal } from './ui';
@@ -177,8 +178,6 @@ function renderItems(items: Item[]): void {
         });
     });
 }
-
-/* ===== MATCH UI ===== */
 
 function getUserMatches(): Match[] {
     if (!currentUser) return [];
@@ -386,8 +385,6 @@ function subscribeMatches(): void {
         });
 }
 
-/* ===== IMAGE MODAL ===== */
-
 let imageModalReady = false;
 
 function closeImageModal(): void {
@@ -431,8 +428,6 @@ function openImageModal(src: string): void {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
-
-/* ===== CLAIM MODAL ===== */
 
 function openClaimModal(item: Item): void {
     const modal = document.getElementById('claimModal');
@@ -492,7 +487,7 @@ function bindClaimModal(): void {
         setButtonLoading(submitBtn, true, 'Submitting...');
 
         try {
-            await createClaim({
+            await createClaimOffline({
                 itemId: item.id,
                 itemName: item.itemName,
                 userId: currentUser.uid,
@@ -517,8 +512,6 @@ function bindClaimModal(): void {
         }
     });
 }
-
-/* ===== ASK ADMIN MODAL ===== */
 
 function openAskAdminModal(item: Item): void {
     const modal = document.getElementById('askAdminModal');
@@ -582,7 +575,7 @@ function bindAskAdminModal(): void {
         setButtonLoading(submitBtn, true, 'Sending...');
 
         try {
-            await sendAdminMessage({
+            await sendAdminMessageOffline({
                 userId: currentUser.uid,
                 userName: currentUser.fullName,
                 userEmail: currentUser.email,
@@ -602,8 +595,6 @@ function bindAskAdminModal(): void {
         }
     });
 }
-
-/* ===== FILTERS ===== */
 
 function filterItems(): void {
     const search =
@@ -637,8 +628,6 @@ document.getElementById('statusFilter')?.addEventListener('change', filterItems)
 
 bindClaimModal();
 bindAskAdminModal();
-
-/* ===== INIT ===== */
 
 onAuthChange(async (fbUser) => {
     if (fbUser) {

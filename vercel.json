@@ -1,0 +1,11 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/items", "destination": "/items.html" },
+    { "source": "/report", "destination": "/report.html" },
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/messages", "destination": "/messages.html" },
+    { "source": "/notifications", "destination": "/notifications.html" }
+  ]
+}

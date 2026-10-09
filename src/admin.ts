@@ -3,10 +3,11 @@ import {
     watchItems, verifyItem, deleteItem, toggleItemStatus,
     sendNotification, markAsRecovered, watchNotifications,
     watchClaims, approveClaim, rejectClaim, createConversation,
-    watchAllAdminMessages, sendAdminMessage, getAdminMessagesForThread,
+    watchAllAdminMessages, getAdminMessagesForThread,
     buildAdminThreads, markAdminThreadAsRead, getUsersByIds,
     watchUnreadMessages
 } from './db';
+import { sendAdminMessageOffline } from './offline/wrappers';
 import { showToast, escapeHtml, formatDate } from './ui';
 import { runMatching } from './matcher';
 import type { Item, User, Notification, Claim, AdminMessage, AdminThread } from './types';
@@ -555,7 +556,7 @@ function bindActions(): void {
                     const verifyMsg = `Good news! Your report "${item.itemName}" has been verified by the admin.`;
                     await sendNotification(item.userId, item.id, verifyMsg);
                     try {
-                        await sendAdminMessage({
+                        await sendAdminMessageOffline({
                             userId: item.userId,
                             userName: item.userName,
                             userEmail: item.userEmail,
@@ -580,7 +581,7 @@ function bindActions(): void {
                     const recoverMsg = `Great news! "${item.itemName}" has been marked as recovered. Thank you for reporting!`;
                     await sendNotification(item.userId, item.id, recoverMsg);
                     try {
-                        await sendAdminMessage({
+                        await sendAdminMessageOffline({
                             userId: item.userId,
                             userName: item.userName,
                             userEmail: item.userEmail,
@@ -738,7 +739,7 @@ async function handleSendNotification(): Promise<void> {
         const item = allItems.find(i => i.id === itemId);
         if (item) {
             try {
-                await sendAdminMessage({
+                await sendAdminMessageOffline({
                     userId: item.userId,
                     userName: item.userName,
                     userEmail: item.userEmail,
@@ -775,7 +776,7 @@ async function handleSendAdminReply(): Promise<void> {
     inquiryReplyInput.focus();
 
     try {
-        await sendAdminMessage({
+        await sendAdminMessageOffline({
             userId: activeThread.userId,
             userName: activeThread.userName,
             userEmail: activeThread.userEmail,

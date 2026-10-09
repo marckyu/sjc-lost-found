@@ -1,6 +1,7 @@
 import './main';
 import { getCurrentUser } from './auth';
-import { createItem } from './db';
+import { createItemOffline } from './offline/wrappers';
+import { pulseSync } from './offline/indicator';
 import { showToast, setButtonLoading } from './ui';
 import type { User, ItemCategory, ItemStatus } from './types';
 
@@ -71,6 +72,7 @@ function handleFiles(files: FileList | File[]): void {
         uploadedFiles.push(file);
     }
     renderPreviews();
+    if (list.length > 0) pulseSync(400);
 }
 
 function initUpload(): void {
@@ -101,6 +103,52 @@ function initUpload(): void {
     });
 }
 
+function bindFieldSync(): void {
+    const textFields = ['itemName', 'location', 'description'];
+    const selectFields = ['reportType', 'category'];
+    const dateFields = ['date'];
+
+    textFields.forEach(id => {
+        const el = document.getElementById(id) as
+            | HTMLInputElement
+            | HTMLTextAreaElement
+            | null;
+        if (!el) return;
+
+        let debounce: number | null = null;
+        el.addEventListener('input', () => {
+            if (debounce !== null) clearTimeout(debounce);
+            debounce = window.setTimeout(() => {
+                const val = el.value.trim();
+                if (val) pulseSync(300);
+            }, 600);
+        });
+
+        el.addEventListener('blur', () => {
+            const val = el.value.trim();
+            if (val) pulseSync(300);
+        });
+    });
+
+    selectFields.forEach(id => {
+        const el = document.getElementById(id) as HTMLSelectElement | null;
+        if (!el) return;
+        el.addEventListener('change', () => {
+            const val = el.value.trim();
+            if (val) pulseSync(400);
+        });
+    });
+
+    dateFields.forEach(id => {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (!el) return;
+        el.addEventListener('change', () => {
+            const val = el.value.trim();
+            if (val) pulseSync(400);
+        });
+    });
+}
+
 function formatDateForInput(date: Date): string {
     const offset = date.getTimezoneOffset();
     return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
@@ -127,6 +175,7 @@ function formatDateForInput(date: Date): string {
 
 initUpload();
 renderPreviews();
+bindFieldSync();
 
 document.getElementById('reportForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -136,7 +185,7 @@ document.getElementById('reportForm')?.addEventListener('submit', async (e) => {
     setButtonLoading(submitBtn, true, 'Submitting...');
 
     try {
-        const itemId = await createItem({
+        const itemId = await createItemOffline({
             userId: currentUser.uid,
             userName: currentUser.fullName,
             userEmail: currentUser.email,

@@ -1365,3 +1365,34 @@ footer {
         font-size: 11px;
     }
 }
+
+.chat-bubble.sending {
+    opacity: 0.7;
+    animation: pulseSending 1.2s ease-in-out infinite;
+}
+
+.chat-bubble.sending .chat-bubble-time {
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.chat-bubble.sending .sending-indicator {
+    display: inline-block;
+}
+
+.chat-bubble.sent {
+    opacity: 1;
+    animation: none;
+}
+
+.chat-bubble.sent .chat-bubble-time {
+    font-style: normal;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes pulseSending {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 0.85; }
+}

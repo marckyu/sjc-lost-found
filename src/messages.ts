@@ -1,12 +1,14 @@
+import './main';
 import {
-    watchUserConversations, watchMessages, sendMessage,
+    watchUserConversations, watchMessages,
     markConversationAsRead, getConversationById,
-    watchAdminMessagesForUser, sendAdminMessage,
+    watchAdminMessagesForUser,
     buildUserAdminThreads, buildAdminThreads,
     markAdminThreadAsRead, watchAdminMessagesForThread,
     watchAllAdminMessages, getUsersByIds,
     hideConversationForUser, unhideConversationForUser
 } from './db';
+import { sendMessageOffline, sendAdminMessageOffline } from './offline/wrappers';
 import { onAuthChange, getCurrentUser } from './auth';
 import { showToast, escapeHtml, formatDate } from './ui';
 import type { Conversation, Message, User, AdminMessage, AdminThread } from './types';
@@ -328,7 +330,9 @@ function renderAdminThreads(): void {
 function appendMessageToList(msgs: Message[]): void {
     if (!messagesEl || !currentUser || !activeConversation) return;
 
-    if (msgs.length === 0) {
+    const pendingBubbles = messagesEl.querySelectorAll('.chat-bubble-wrap[data-temp-id]');
+
+    if (msgs.length === 0 && pendingBubbles.length === 0) {
         const other = otherUser(activeConversation);
         messagesEl.innerHTML = `
             <div class="chat-messages-empty">
@@ -344,7 +348,7 @@ function appendMessageToList(msgs: Message[]): void {
         return;
     }
 
-    messagesEl.innerHTML = msgs.map(m => {
+    const bubblesHtml = msgs.map(m => {
         const mine = m.senderId === currentUser!.uid;
         const info = userCache.get(m.senderId);
         const avatar = info?.avatar;
@@ -366,6 +370,9 @@ function appendMessageToList(msgs: Message[]): void {
         `;
     }).join('');
 
+    const pendingHtml = Array.from(pendingBubbles).map(b => b.outerHTML).join('');
+    messagesEl.innerHTML = bubblesHtml + pendingHtml;
+
     scrollToBottom();
 }
 
@@ -373,8 +380,9 @@ function appendAdminMessagesToList(msgs: AdminMessage[]): void {
     if (!messagesEl || !currentUser) return;
 
     const amAdmin = isAdmin();
+    const pendingBubbles = messagesEl.querySelectorAll('.chat-bubble-wrap[data-temp-id]');
 
-    if (msgs.length === 0) {
+    if (msgs.length === 0 && pendingBubbles.length === 0) {
         messagesEl.innerHTML = `
             <div class="chat-messages-empty">
                 <div class="chat-messages-empty-icon">
@@ -389,7 +397,7 @@ function appendAdminMessagesToList(msgs: AdminMessage[]): void {
         return;
     }
 
-    messagesEl.innerHTML = msgs.map(m => {
+    const bubblesHtml = msgs.map(m => {
         const mine = amAdmin ? m.senderRole === 'admin' : m.senderRole === 'user';
 
         let senderLabel = '';
@@ -415,6 +423,9 @@ function appendAdminMessagesToList(msgs: AdminMessage[]): void {
         `;
     }).join('');
 
+    const pendingHtml = Array.from(pendingBubbles).map(b => b.outerHTML).join('');
+    messagesEl.innerHTML = bubblesHtml + pendingHtml;
+
     scrollToBottom();
 }
 
@@ -422,6 +433,55 @@ function scrollToBottom(): void {
     if (messagesEl) {
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
+}
+
+function appendTempBubble(text: string): void {
+    if (!messagesEl || !currentUser) return;
+
+    const empty = messagesEl.querySelector('.chat-messages-empty');
+    if (empty) empty.remove();
+
+    const info = userCache.get(currentUser.uid);
+    const avatar = info?.avatar;
+    const initial = (currentUser.fullName || '?').charAt(0).toUpperCase();
+
+    const avatarHtml = avatar
+        ? `<span class="chat-bubble-avatar"><img src="${avatar}" alt="${escapeHtml(currentUser.fullName)}"></span>`
+        : `<span class="chat-bubble-avatar">${escapeHtml(initial)}</span>`;
+
+    const tempId = 'temp-' + Date.now();
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-bubble-wrap mine';
+    wrap.dataset.tempId = tempId;
+    wrap.innerHTML = `
+        <div class="chat-bubble mine sending" data-msg-id="${tempId}">
+            <p class="chat-bubble-text">${escapeHtml(text)}</p>
+            <small class="chat-bubble-time">
+                <span class="sending-indicator">Sending</span>...
+            </small>
+        </div>
+    `;
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+}
+
+function markTempBubblesAsSent(): void {
+    if (!messagesEl) return;
+    messagesEl.querySelectorAll<HTMLElement>('.chat-bubble.sending').forEach(bubble => {
+        bubble.classList.remove('sending');
+        bubble.classList.add('sent');
+        const timeEl = bubble.querySelector('.chat-bubble-time');
+        if (timeEl) {
+            timeEl.innerHTML = '✓ Sent';
+        }
+    });
+}
+
+function removeTempBubbles(): void {
+    if (!messagesEl) return;
+    messagesEl.querySelectorAll<HTMLElement>('.chat-bubble-wrap[data-temp-id]').forEach(el => {
+        el.remove();
+    });
 }
 
 function openConversation(convId: string): void {
@@ -537,12 +597,16 @@ chatFormEl?.addEventListener('submit', async (e) => {
     const text = chatInputEl.value.trim();
     if (!text) return;
 
+    const offline = !navigator.onLine;
+
     if (activeAdminThread) {
         chatInputEl.value = '';
         chatInputEl.focus();
 
+        if (offline) appendTempBubble(text);
+
         try {
-            await sendAdminMessage({
+            await sendAdminMessageOffline({
                 userId: activeAdminThread.userId,
                 userName: activeAdminThread.userName,
                 userEmail: activeAdminThread.userEmail,
@@ -564,8 +628,10 @@ chatFormEl?.addEventListener('submit', async (e) => {
         chatInputEl.value = '';
         chatInputEl.focus();
 
+        if (offline) appendTempBubble(text);
+
         try {
-            await sendMessage({
+            await sendMessageOffline({
                 conversationId: activeConversation.id,
                 senderId: currentUser.uid,
                 senderName: currentUser.fullName,
@@ -578,6 +644,27 @@ chatFormEl?.addEventListener('submit', async (e) => {
             chatInputEl.value = text;
         }
     }
+});
+
+window.addEventListener('sjc-sync-complete', () => {
+    markTempBubblesAsSent();
+    setTimeout(() => {
+        removeTempBubbles();
+        if (activeAdminThread) {
+            const uid = activeAdminThread.userId;
+            const itemId = activeAdminThread.itemId;
+            if (msgUnsubscribe) msgUnsubscribe();
+            msgUnsubscribe = watchAdminMessagesForThread(uid, itemId, (msgs) => {
+                appendAdminMessagesToList(msgs);
+            });
+        } else if (activeConversation) {
+            const convId = activeConversation.id;
+            if (msgUnsubscribe) msgUnsubscribe();
+            msgUnsubscribe = watchMessages(convId, (msgs) => {
+                appendMessageToList(msgs);
+            });
+        }
+    }, 1000);
 });
 
 backBtn?.addEventListener('click', closeConversation);
