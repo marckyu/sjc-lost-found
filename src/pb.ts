@@ -9,3 +9,13 @@ const PB_URL =
 export const pb = new PocketBase(PB_URL);
 
 pb.autoCancellation(false);
+
+pb.beforeSend = function (url, options) {
+    if (url.includes('loca.lt')) {
+        options.headers = {
+            ...options.headers,
+            'Bypass-Tunnel-Reminder': 'true'
+        };
+    }
+    return { url, options };
+};
