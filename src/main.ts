@@ -32,7 +32,7 @@ let userMsgUnread = 0;
 let adminMsgUnread = 0;
 
 function isProtectedPage(): boolean {
-    return /\/(admin|report|messages)\.html$/.test(window.location.pathname);
+    return /\/(admin|report|messages)(\.html)?$/.test(window.location.pathname);
 }
 
 function applyRoleUI(user: User | null): void {
@@ -641,11 +641,18 @@ createProfileModal();
 function updateBottomNav(): void {
     const path = window.location.pathname;
     let currentPage = 'index';
-    if (path.includes('items.html')) currentPage = 'items';
-    else if (path.includes('report.html')) currentPage = 'report';
-    else if (path.includes('messages.html')) currentPage = 'messages';
-    else if (path.includes('admin.html')) currentPage = 'admin';
-    else if (path.includes('index.html') || path === '/' || path.endsWith('/')) currentPage = 'index';
+
+    if (path.includes('items')) {
+        currentPage = 'items';
+    } else if (path.includes('report')) {
+        currentPage = 'report';
+    } else if (path.includes('messages')) {
+        currentPage = 'messages';
+    } else if (path.includes('admin')) {
+        currentPage = 'admin';
+    } else if (path === '/' || path.endsWith('/') || path.includes('index')) {
+        currentPage = 'index';
+    }
 
     document.querySelectorAll<HTMLElement>('.bn-item[data-page]').forEach(item => {
         item.classList.toggle('is-active', item.dataset.page === currentPage);
@@ -668,6 +675,9 @@ function bindBottomNav(): void {
 
 updateBottomNav();
 bindBottomNav();
+
+window.addEventListener('popstate', updateBottomNav);
+window.addEventListener('pageshow', updateBottomNav);
 
 initSync();
 initOfflineIndicator();
