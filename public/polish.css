@@ -1,0 +1,257 @@
+:root {
+    --polish-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --polish-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --polish-smooth: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    --polish-bounce: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    --polish-glow: 0 8px 24px rgba(22, 101, 52, 0.28);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+.nav-links a {
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-links a::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: currentColor;
+    transition: width var(--polish-normal), left var(--polish-normal);
+    transform: translateX(-50%);
+    border-radius: 2px;
+    opacity: 0.9;
+}
+
+.nav-links a:hover::after {
+    width: calc(100% - 24px);
+}
+
+.nav-links a.active::after {
+    display: none;
+}
+
+.button,
+.nav-button-solid,
+.nav-button-outline,
+.submit-button,
+.claim-button,
+.ask-admin-button,
+.admin-button {
+    transition:
+        transform var(--polish-normal),
+        box-shadow var(--polish-normal),
+        background-color var(--polish-fast),
+        color var(--polish-fast),
+        border-color var(--polish-fast);
+    will-change: transform;
+}
+
+.button:hover,
+.nav-button-solid:hover,
+.submit-button:hover,
+.claim-button:hover,
+.ask-admin-button:hover,
+.admin-button:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: var(--polish-glow);
+}
+
+.button-secondary:hover,
+.nav-button-outline:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.button:active,
+.nav-button-solid:active,
+.nav-button-outline:active,
+.submit-button:active,
+.claim-button:active,
+.ask-admin-button:active,
+.admin-button:active,
+.button-secondary:active {
+    transform: translateY(0) scale(0.98);
+    transition-duration: 0.08s;
+}
+
+.card,
+.item-card,
+.stat-card,
+.claim-card,
+.chat-conv-item,
+.notif-card,
+.match-card {
+    transition:
+        transform var(--polish-smooth),
+        box-shadow var(--polish-smooth),
+        border-color var(--polish-normal);
+    will-change: transform;
+}
+
+.card:hover {
+    transform: translateY(-8px) scale(1.01);
+    box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.05),
+        0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.item-card:hover {
+    transform: translateY(-6px) scale(1.01);
+    box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.05),
+        0 16px 32px rgba(0, 0, 0, 0.12);
+}
+
+.stat-card:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.05),
+        0 16px 32px rgba(0, 0, 0, 0.12);
+}
+
+.icon-wrap {
+    transition:
+        transform var(--polish-bounce),
+        background-color var(--polish-normal);
+    will-change: transform;
+}
+
+.card:hover .icon-wrap {
+    transform: scale(1.12) rotate(-6deg);
+}
+
+.upload-placeholder svg {
+    transition: transform var(--polish-bounce);
+}
+
+.upload-area:hover .upload-placeholder svg {
+    transform: translateY(-4px) scale(1.05);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea,
+.search-section input,
+.search-section select,
+.search-box input,
+.filter-select {
+    transition:
+        border-color var(--polish-fast),
+        box-shadow var(--polish-normal),
+        transform var(--polish-fast),
+        background-color var(--polish-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus,
+.search-section input:focus,
+.search-section select:focus,
+.search-box input:focus,
+.filter-select:focus {
+    transform: translateY(-1px);
+    box-shadow:
+        0 0 0 4px rgba(22, 101, 52, 0.12),
+        0 6px 16px rgba(22, 101, 52, 0.1);
+}
+
+.user-avatar,
+.user-menu-trigger {
+    transition:
+        transform var(--polish-bounce),
+        background-color var(--polish-normal),
+        box-shadow var(--polish-normal);
+}
+
+.nav-bell {
+    transition:
+        background-color var(--polish-normal),
+        transform var(--polish-bounce),
+        box-shadow var(--polish-normal);
+}
+
+.item-image-thumb,
+.image-thumb {
+    transition:
+        transform var(--polish-smooth),
+        border-color var(--polish-normal),
+        box-shadow var(--polish-normal);
+}
+
+.item-image-thumb:hover,
+.image-thumb:hover {
+    transform: scale(1.06);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.dropdown-menu a {
+    transition:
+        background-color var(--polish-fast),
+        color var(--polish-fast),
+        padding-left var(--polish-normal);
+}
+
+.dropdown-menu a:hover {
+    padding-left: 20px;
+}
+
+.bn-item {
+    transition:
+        color var(--polish-normal),
+        background-color var(--polish-normal),
+        transform var(--polish-bounce);
+}
+
+.bn-item:hover {
+    transform: translateY(-2px);
+}
+
+.bn-item:active {
+    transform: scale(0.94);
+}
+
+.match-score,
+.item-status,
+.status-badge,
+.verified-badge {
+    transition: transform var(--polish-bounce);
+}
+
+.item-card:hover .item-status,
+.item-card:hover .verified-badge {
+    transform: scale(1.05);
+}
+
+.match-card:hover .match-score {
+    transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+@media (max-width: 700px) {
+    .card:hover,
+    .item-card:hover,
+    .stat-card:hover {
+        transform: translateY(-4px);
+    }
+    .button:hover,
+    .submit-button:hover,
+    .claim-button:hover {
+        transform: translateY(-2px);
+    }
+}
