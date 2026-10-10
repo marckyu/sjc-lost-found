@@ -238,6 +238,153 @@ function updateNavAuth(user: User | null): void {
     }
 }
 
+function createProfileModal(): void {
+    if (document.getElementById('profileModal')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'profileModal';
+    modal.className = 'modal';
+    modal.hidden = true;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `
+        <div class="modal-content profile-modal-content">
+            <button class="close-btn" id="closeProfileBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="profile-modal-header">
+                <div class="profile-avatar-large" id="profileAvatarLarge"></div>
+                <h2 id="profileName">User</h2>
+                <p id="profileEmail">-</p>
+                <span class="profile-role-badge" id="profileRole">Member</span>
+            </div>
+            <div class="profile-modal-menu">
+                <button class="profile-menu-item" id="profileChangePhotoBtn" type="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                    <span>Change Photo</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+                <a href="items.html" class="profile-menu-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.3-4.3"></path>
+                    </svg>
+                    <span>Lost &amp; Found</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <a href="messages.html" class="profile-menu-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>Messages</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <a href="notifications.html" class="profile-menu-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                    </svg>
+                    <span>Notifications</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <a href="admin.html" class="profile-menu-item admin-only" id="profileDashboardLink" hidden>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="9"></rect>
+                        <rect x="14" y="3" width="7" height="5"></rect>
+                        <rect x="14" y="12" width="7" height="9"></rect>
+                        <rect x="3" y="16" width="7" height="5"></rect>
+                    </svg>
+                    <span>Admin Dashboard</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <button class="profile-menu-item danger" id="profileLogoutBtn" type="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Logout</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('closeProfileBtn')?.addEventListener('click', closeProfileModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeProfileModal();
+    });
+
+    document.getElementById('profileChangePhotoBtn')?.addEventListener('click', async () => {
+        closeProfileModal();
+        const { openAvatarModal } = await import('./profile');
+        openAvatarModal();
+    });
+
+    document.getElementById('profileLogoutBtn')?.addEventListener('click', async () => {
+        closeProfileModal();
+        await signOut();
+        if (isProtectedPage()) {
+            window.location.href = 'index.html';
+            return;
+        }
+        showToast('Signed out.', 'info');
+    });
+}
+
+function openProfileModal(): void {
+    if (!currentUser) return;
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+
+    const avatarEl = document.getElementById('profileAvatarLarge');
+    const nameEl = document.getElementById('profileName');
+    const emailEl = document.getElementById('profileEmail');
+    const roleEl = document.getElementById('profileRole');
+    const dashLink = document.getElementById('profileDashboardLink');
+
+    if (avatarEl) {
+        if (currentUser.avatar) {
+            avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="${escapeHtml(currentUser.fullName)}">`;
+        } else {
+            avatarEl.textContent = currentUser.fullName.charAt(0).toUpperCase();
+        }
+    }
+    if (nameEl) nameEl.textContent = currentUser.fullName;
+    if (emailEl) emailEl.textContent = currentUser.email;
+    if (roleEl) {
+        roleEl.textContent = currentUser.role === 'admin' ? 'Admin' : 'Member';
+        roleEl.classList.toggle('admin', currentUser.role === 'admin');
+    }
+    if (dashLink) {
+        (dashLink as HTMLElement).hidden = currentUser.role !== 'admin';
+    }
+
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function closeProfileModal(): void {
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+}
+
 function bindAuthButtons(): void {
     document.querySelectorAll<HTMLElement>('[data-open-auth]').forEach(btn => {
         if (btn.dataset.bound === '1') return;
@@ -382,7 +529,11 @@ function bindModalClose(): void {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal && !modal.hidden) closeModal('authModal');
+        if (e.key === 'Escape') {
+            if (modal && !modal.hidden) closeModal('authModal');
+            const profileModal = document.getElementById('profileModal');
+            if (profileModal && !profileModal.hidden) closeProfileModal();
+        }
     });
 
     document.addEventListener('click', () => {
@@ -485,6 +636,7 @@ bindModalClose();
 bindHamburger();
 bindRequireAuth();
 initAvatarUploader();
+createProfileModal();
 
 function updateBottomNav(): void {
     const path = window.location.pathname;
@@ -510,12 +662,7 @@ function bindBottomNav(): void {
             setTimeout(() => openAuthModal('signin'), 400);
             return;
         }
-
-        const userMenu = document.getElementById('userMenu');
-        if (userMenu) {
-            userMenu.classList.toggle('active');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        openProfileModal();
     });
 }
 
