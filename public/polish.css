@@ -442,12 +442,44 @@ html {
 }
 
 @media (max-width: 700px) {
+    header {
+        padding: 0 12px !important;
+        padding-left: max(12px, env(safe-area-inset-left)) !important;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+        gap: 8px;
+    }
+
+    .brand {
+        flex-shrink: 1;
+        min-width: 0;
+        gap: 8px;
+    }
+
+    .brand-copy {
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .brand-copy strong {
+        font-size: 14px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+
+    .sjc-logo {
+        width: 34px !important;
+        height: 34px !important;
+    }
+
     .hamburger {
         display: none !important;
     }
 
     nav {
         position: static !important;
+        flex-shrink: 0;
     }
 
     .nav-links {
@@ -455,7 +487,7 @@ html {
         position: static !important;
         flex-direction: row !important;
         align-items: center !important;
-        gap: 6px !important;
+        gap: 8px !important;
         padding: 0 !important;
         width: auto !important;
         background: transparent !important;
@@ -480,11 +512,16 @@ html {
         width: auto !important;
         margin: 0 !important;
         padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
     }
 
     .nav-links #navAuth .nav-actions {
         margin-left: 0 !important;
-        gap: 6px !important;
+        gap: 8px !important;
+        display: flex !important;
+        align-items: center !important;
     }
 
     .nav-links #navAuth .nav-bell {
@@ -520,10 +557,30 @@ html {
     }
 
     .nav-links #navAuth .nav-button {
-        padding: 7px 12px !important;
-        font-size: 12px !important;
-        min-height: 38px !important;
         pointer-events: auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 8px 14px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        min-height: 36px !important;
+        border-radius: 10px !important;
+        white-space: nowrap !important;
+        line-height: 1 !important;
+    }
+
+    .nav-links #navAuth .nav-button-outline {
+        background: transparent !important;
+        color: #fff !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+    }
+
+    .nav-links #navAuth .nav-button-solid {
+        background: #86efac !important;
+        color: #14532d !important;
+        border: 1.5px solid #86efac !important;
     }
 
     .nav-links a::after {
@@ -567,5 +624,16 @@ html {
     .profile-menu-item {
         padding: 16px;
         font-size: 15px;
+    }
+}
+
+@media (max-width: 380px) {
+    .brand-copy strong {
+        font-size: 13px !important;
+    }
+
+    .nav-links #navAuth .nav-button {
+        padding: 7px 10px !important;
+        font-size: 12px !important;
     }
 }
