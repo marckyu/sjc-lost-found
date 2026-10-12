@@ -1025,16 +1025,20 @@ function passwordResetFromRecord(r: RecordModel): PasswordReset {
 }
 
 export async function findUserByEmail(email: string): Promise<{ id: string; fullname: string; email: string } | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+
     try {
         const record = await pb.collection('users').getFirstListItem(
-            pb.filter('email = {:email}', { email })
+            pb.filter('email = {:email}', { email: normalizedEmail })
         );
+
         return {
             id: record.id,
             fullname: (record.fullname as string) || (record.email as string),
             email: record.email as string
         };
-    } catch {
+    } catch (err) {
+        console.warn('[db] User not found for email:', normalizedEmail);
         return null;
     }
 }
