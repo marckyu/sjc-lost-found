@@ -285,6 +285,43 @@ html {
     background: #fff;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 8px 20px rgba(0, 0, 0, 0.15);
     animation: profileModalIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+
+.profile-modal-content .close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    transition:
+        transform var(--polish-normal),
+        background-color var(--polish-normal),
+        color var(--polish-normal);
+}
+
+.profile-modal-content .close-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+    color: #fff;
+    transform: rotate(90deg) scale(1.1);
+}
+
+.profile-modal-content .close-btn:active {
+    transform: rotate(90deg) scale(0.95);
+    transition-duration: 0.08s;
 }
 
 @keyframes profileModalIn {
@@ -645,6 +682,14 @@ html {
 
     .profile-modal-content {
         border-radius: 20px;
+    }
+
+    .profile-modal-content .close-btn {
+        top: 14px;
+        right: 14px;
+        width: 32px;
+        height: 32px;
+        font-size: 22px;
     }
 
     .profile-modal-header {
