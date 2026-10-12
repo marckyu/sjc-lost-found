@@ -512,6 +512,54 @@ html {
     background: #dbeafe;
 }
 
+.forgot-password-content .form-group textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #bbd7c4;
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    color: #0a0a0a;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.forgot-password-content .form-group textarea:focus {
+    border-color: #166534;
+    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
+}
+
+.temp-password-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: #d1fae5;
+    color: #047857;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #a7f3d0;
+}
+
+.temp-password-badge code {
+    font-family: 'Courier New', monospace;
+    font-weight: 800;
+    background: #ecfdf5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #065f46;
+}
+
+#passwordResetTemp {
+    font-family: 'Courier New', monospace;
+    font-weight: 800;
+    letter-spacing: 1px;
+    background: #f0fdf4;
+    border-color: #a7f3d0;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -528,12 +576,14 @@ html {
         padding-left: max(12px, env(safe-area-inset-left)) !important;
         padding-right: max(12px, env(safe-area-inset-right)) !important;
         gap: 8px;
+        height: 56px !important;
     }
 
     .brand {
         flex-shrink: 1;
         min-width: 0;
         gap: 8px;
+        flex: 1;
     }
 
     .brand-copy {
@@ -542,7 +592,7 @@ html {
     }
 
     .brand-copy strong {
-        font-size: 14px !important;
+        font-size: 13px !important;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -550,8 +600,8 @@ html {
     }
 
     .sjc-logo {
-        width: 34px !important;
-        height: 34px !important;
+        width: 32px !important;
+        height: 32px !important;
     }
 
     .hamburger {
@@ -568,7 +618,7 @@ html {
         position: static !important;
         flex-direction: row !important;
         align-items: center !important;
-        gap: 8px !important;
+        gap: 6px !important;
         padding: 0 !important;
         width: auto !important;
         background: transparent !important;
@@ -595,7 +645,7 @@ html {
         padding: 0 !important;
         display: flex !important;
         align-items: center !important;
-        gap: 8px !important;
+        gap: 6px !important;
     }
 
     .nav-links #navAuth .nav-actions {
@@ -629,8 +679,8 @@ html {
     }
 
     .nav-links #navAuth .user-avatar {
-        width: 36px !important;
-        height: 36px !important;
+        width: 34px !important;
+        height: 34px !important;
     }
 
     .nav-links #navAuth .dropdown-menu {
@@ -642,26 +692,30 @@ html {
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        padding: 8px 14px !important;
-        font-size: 13px !important;
+        padding: 7px 12px !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
-        min-height: 36px !important;
-        border-radius: 10px !important;
+        min-height: 34px !important;
+        border-radius: 20px !important;
         white-space: nowrap !important;
         line-height: 1 !important;
+        letter-spacing: 0.2px;
     }
 
     .nav-links #navAuth .nav-button-outline {
-        background: transparent !important;
+        background: rgba(255, 255, 255, 0.15) !important;
         color: #fff !important;
-        border: 1.5px solid rgba(255, 255, 255, 0.8) !important;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.85) !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
     }
 
     .nav-links #navAuth .nav-button-solid {
         background: #86efac !important;
         color: #14532d !important;
         border: 1.5px solid #86efac !important;
+        box-shadow: 0 2px 8px rgba(134, 239, 172, 0.35) !important;
     }
 
     .nav-links a::after {
@@ -718,59 +772,12 @@ html {
 
 @media (max-width: 380px) {
     .brand-copy strong {
-        font-size: 13px !important;
+        font-size: 12px !important;
     }
 
     .nav-links #navAuth .nav-button {
-        padding: 7px 10px !important;
-        font-size: 12px !important;
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        min-height: 32px !important;
     }
-}
-
-.forgot-password-content .form-group textarea {
-    width: 100%;
-    padding: 11px 14px;
-    border: 1px solid #bbd7c4;
-    border-radius: 8px;
-    outline: 0;
-    background: #fff;
-    font: inherit;
-    font-size: 14px;
-    color: #0a0a0a;
-    resize: vertical;
-    min-height: 80px;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.forgot-password-content .form-group textarea:focus {
-    border-color: #166534;
-    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
-}
-
-.temp-password-badge {
-    display: inline-block;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background: #d1fae5;
-    color: #047857;
-    font-size: 12px;
-    font-weight: 700;
-    border: 1px solid #a7f3d0;
-}
-
-.temp-password-badge code {
-    font-family: 'Courier New', monospace;
-    font-weight: 800;
-    background: #ecfdf5;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: #065f46;
-}
-
-#passwordResetTemp {
-    font-family: 'Courier New', monospace;
-    font-weight: 800;
-    letter-spacing: 1px;
-    background: #f0fdf4;
-    border-color: #a7f3d0;
 }
