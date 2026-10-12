@@ -726,3 +726,51 @@ html {
         font-size: 12px !important;
     }
 }
+
+.forgot-password-content .form-group textarea {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #bbd7c4;
+    border-radius: 8px;
+    outline: 0;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    color: #0a0a0a;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.forgot-password-content .form-group textarea:focus {
+    border-color: #166534;
+    box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.14);
+}
+
+.temp-password-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: #d1fae5;
+    color: #047857;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #a7f3d0;
+}
+
+.temp-password-badge code {
+    font-family: 'Courier New', monospace;
+    font-weight: 800;
+    background: #ecfdf5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #065f46;
+}
+
+#passwordResetTemp {
+    font-family: 'Courier New', monospace;
+    font-weight: 800;
+    letter-spacing: 1px;
+    background: #f0fdf4;
+    border-color: #a7f3d0;
+}

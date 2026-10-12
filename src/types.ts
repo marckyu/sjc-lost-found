@@ -13,6 +13,7 @@ export type ItemCategory =
 export type ClaimStatus = 'pending' | 'approved' | 'rejected';
 export type AdminMessageRole = 'user' | 'admin';
 export type MatchStatus = 'pending' | 'confirmed' | 'rejected' | 'completed';
+export type PasswordResetStatus = 'pending' | 'approved' | 'rejected';
 
 export interface User {
     uid: string;
@@ -129,6 +130,19 @@ export interface Match {
     matchReason: string;
     status: MatchStatus;
     notifiedAt: Date | null;
+    createdAt: Date;
+}
+
+export interface PasswordReset {
+    id: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
+    status: PasswordResetStatus;
+    tempPassword: string | null;
+    adminNote: string | null;
+    reviewedBy: string | null;
+    reviewedAt: Date | null;
     createdAt: Date;
 }
 

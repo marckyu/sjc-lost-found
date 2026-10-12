@@ -2,7 +2,8 @@ import type { RecordModel } from 'pocketbase';
 import { pb } from './pb';
 import type {
     Item, ItemStatus, ItemCategory, Notification, Claim, ClaimStatus,
-    Conversation, Message, AdminMessage, AdminMessageRole, AdminThread, Match
+    Conversation, Message, AdminMessage, AdminMessageRole, AdminThread, Match,
+    PasswordReset, PasswordResetStatus
 } from './types';
 
 const ITEMS_COL = 'items';
@@ -12,6 +13,7 @@ const CONVS_COL = 'conversations';
 const MSGS_COL = 'messages';
 const ADMIN_MSGS_COL = 'admin_messages';
 const MATCHES_COL = 'matches';
+const PASSWORD_RESETS_COL = 'password_resets';
 
 function toDate(value?: string | null): Date | null {
     if (!value) return null;
@@ -1005,4 +1007,114 @@ export async function getUsersByIds(
     }
 
     return map;
+}
+
+function passwordResetFromRecord(r: RecordModel): PasswordReset {
+    return {
+        id: String(r.id),
+        userId: String(r.userId),
+        userName: String(r.userName),
+        userEmail: String(r.userEmail),
+        status: (r.status as PasswordResetStatus) || 'pending',
+        tempPassword: r.tempPassword ? String(r.tempPassword) : null,
+        adminNote: r.adminNote ? String(r.adminNote) : null,
+        reviewedBy: r.reviewedBy ? String(r.reviewedBy) : null,
+        reviewedAt: toDate(r.reviewedAt),
+        createdAt: toDate(r.created) ?? new Date()
+    };
+}
+
+export async function findUserByEmail(email: string): Promise<{ id: string; fullname: string; email: string } | null> {
+    try {
+        const record = await pb.collection('users').getFirstListItem(
+            pb.filter('email = {:email}', { email })
+        );
+        return {
+            id: record.id,
+            fullname: (record.fullname as string) || (record.email as string),
+            email: record.email as string
+        };
+    } catch {
+        return null;
+    }
+}
+
+export async function createPasswordReset(
+    userId: string,
+    userName: string,
+    userEmail: string
+): Promise<string> {
+    const record = await pb.collection(PASSWORD_RESETS_COL).create({
+        userId,
+        userName,
+        userEmail,
+        status: 'pending'
+    });
+    return record.id;
+}
+
+export async function getAllPasswordResets(): Promise<PasswordReset[]> {
+    const records = await pb.collection(PASSWORD_RESETS_COL).getFullList({
+        sort: '-created'
+    });
+    return records.map(passwordResetFromRecord);
+}
+
+export function watchPasswordResets(callback: (resets: PasswordReset[]) => void): () => void {
+    let stopped = false;
+    let unsubscribe: (() => Promise<void>) | null = null;
+
+    const load = async () => {
+        try {
+            const resets = await getAllPasswordResets();
+            if (!stopped) callback(resets);
+        } catch (err) {
+            console.error('Failed to load password resets:', err);
+        }
+    };
+
+    load();
+
+    pb.collection(PASSWORD_RESETS_COL)
+        .subscribe('*', () => {
+            load();
+        })
+        .then(unsub => {
+            if (stopped) unsub();
+            else unsubscribe = unsub;
+        })
+        .catch(err => console.error('Realtime password resets subscribe failed:', err));
+
+    return () => {
+        stopped = true;
+        if (unsubscribe) unsubscribe();
+    };
+}
+
+export async function approvePasswordReset(
+    resetId: string,
+    adminId: string,
+    tempPassword: string,
+    adminNote: string = ''
+): Promise<void> {
+    await pb.collection(PASSWORD_RESETS_COL).update(resetId, {
+        status: 'approved',
+        tempPassword,
+        adminNote,
+        reviewedBy: adminId,
+        reviewedAt: new Date().toISOString()
+    });
+}
+
+export async function rejectPasswordReset(
+    resetId: string,
+    adminId: string,
+    adminNote: string = ''
+): Promise<void> {
+    await pb.collection(PASSWORD_RESETS_COL).update(resetId, {
+        status: 'rejected',
+        adminNote,
+        reviewedBy: adminId,
+        reviewedAt: new Date().toISOString()
+    });
 }
