@@ -2,7 +2,7 @@ import './pb';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile, signOut, signIn, signUp, isValidPhinmaEdEmail } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
-import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
+import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages, createPasswordReset, findUserByEmail } from './db';
 import { initAvatarUploader } from './profile';
 import { initSync } from './offline/sync';
 import { initOfflineIndicator, pulseSync } from './offline/indicator';
@@ -377,6 +377,183 @@ function closeProfileModal(): void {
     document.body.style.overflow = '';
 }
 
+function createForgotPasswordModal(): void {
+    if (document.getElementById('forgotPasswordModal')) {
+        console.log('[forgot] Modal already exists, skipping creation');
+        return;
+    }
+
+    console.log('[forgot] Creating modal...');
+
+    const modal = document.createElement('div');
+    modal.id = 'forgotPasswordModal';
+    modal.className = 'modal';
+    modal.hidden = true;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `
+        <div class="modal-content forgot-password-content">
+            <button class="close-btn" id="closeForgotBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="modal-intro">
+                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
+                <div>
+                    <h2>Forgot Password</h2>
+                    <p>Enter your PHINMAEd email to request a password reset.</p>
+                </div>
+            </div>
+            <div class="auth-message" id="forgotMessage" role="alert"></div>
+            <form id="forgotPasswordForm" novalidate>
+                <div class="form-group">
+                    <label for="forgotEmail">PHINMAEd Email</label>
+                    <input id="forgotEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
+                </div>
+                <div class="form-group">
+                    <label for="forgotReason">Additional Information (optional)</label>
+                    <textarea id="forgotReason" placeholder="Optional: anything that might help the admin verify your identity" maxlength="300"></textarea>
+                </div>
+                <button class="submit-button" type="submit">Submit Request</button>
+                <p class="form-footer">
+                    Remember your password?
+                    <button type="button" class="inline-button" data-back-to-signin>Back to Sign In</button>
+                </p>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    console.log('[forgot] Modal appended to body');
+
+    document.getElementById('closeForgotBtn')?.addEventListener('click', closeForgotPasswordModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeForgotPasswordModal();
+    });
+
+    document.querySelector('[data-back-to-signin]')?.addEventListener('click', () => {
+        closeForgotPasswordModal();
+        openAuthModal('signin');
+    });
+
+    document.getElementById('forgotPasswordForm')?.addEventListener('submit', handleForgotPasswordSubmit);
+
+    console.log('[forgot] Modal event listeners attached');
+}
+
+function showForgotMessage(msg: string, type: 'success' | 'error'): void {
+    const el = document.getElementById('forgotMessage');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'auth-message ' + type;
+}
+
+function openForgotPasswordModal(): void {
+    const modal = document.getElementById('forgotPasswordModal');
+    console.log('[forgot] Opening modal. Exists:', !!modal);
+    if (!modal) {
+        console.error('[forgot] Modal not found in DOM!');
+        return;
+    }
+
+    const emailInput = document.getElementById('forgotEmail') as HTMLInputElement | null;
+    const signinEmail = document.getElementById('signinEmail') as HTMLInputElement | null;
+
+    if (emailInput && signinEmail?.value) {
+        emailInput.value = signinEmail.value;
+    }
+
+    const reasonInput = document.getElementById('forgotReason') as HTMLTextAreaElement | null;
+    if (reasonInput) reasonInput.value = '';
+
+    const msgEl = document.getElementById('forgotMessage');
+    if (msgEl) {
+        msgEl.textContent = '';
+        msgEl.className = 'auth-message';
+    }
+
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    setTimeout(() => emailInput?.focus(), 100);
+
+    console.log('[forgot] Modal opened successfully');
+}
+
+function closeForgotPasswordModal(): void {
+    const modal = document.getElementById('forgotPasswordModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+}
+
+async function handleForgotPasswordSubmit(e: Event): Promise<void> {
+    e.preventDefault();
+
+    const emailInput = document.getElementById('forgotEmail') as HTMLInputElement | null;
+    const reasonInput = document.getElementById('forgotReason') as HTMLTextAreaElement | null;
+    const submitBtn = document.querySelector<HTMLButtonElement>('#forgotPasswordForm .submit-button');
+
+    if (!emailInput) return;
+
+    const email = emailInput.value.trim().toLowerCase();
+
+    if (!email) {
+        showForgotMessage('Please enter your email.', 'error');
+        return;
+    }
+
+    if (!isValidPhinmaEdEmail(email)) {
+        showForgotMessage('Please enter a valid PHINMAEd email.', 'error');
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
+    }
+
+    try {
+        const user = await findUserByEmail(email);
+
+        if (!user) {
+            showForgotMessage('No account found with that email.', 'error');
+            return;
+        }
+
+        await createPasswordReset(user.id, user.fullname, user.email);
+
+        showForgotMessage('Request submitted! Admin will contact you soon.', 'success');
+
+        setTimeout(() => {
+            closeForgotPasswordModal();
+            showToast('Password reset request sent. Please check your messages.', 'success');
+        }, 1800);
+    } catch (err) {
+        console.error(err);
+        showForgotMessage('Failed to submit request. Try again.', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Request';
+        }
+    }
+}
+
+function bindForgotPassword(): void {
+    const buttons = document.querySelectorAll<HTMLElement>('[data-forgot-password]');
+    console.log('[forgot] Found buttons:', buttons.length);
+
+    buttons.forEach(btn => {
+        if (btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[forgot] Button clicked!');
+            closeModal('authModal');
+            setTimeout(() => openForgotPasswordModal(), 200);
+        });
+    });
+}
+
 function bindAuthButtons(): void {
     document.querySelectorAll<HTMLElement>('[data-open-auth]').forEach(btn => {
         if (btn.dataset.bound === '1') return;
@@ -391,6 +568,7 @@ function bindAuthButtons(): void {
 function openAuthModal(tab: 'signin' | 'signup'): void {
     openModal('authModal');
     showTab(tab);
+    setTimeout(() => bindForgotPassword(), 100);
 }
 
 function showTab(tab: 'signin' | 'signup'): void {
@@ -584,6 +762,8 @@ function bindModalClose(): void {
             if (modal && !modal.hidden) closeModal('authModal');
             const profileModal = document.getElementById('profileModal');
             if (profileModal && !profileModal.hidden) closeProfileModal();
+            const forgotModal = document.getElementById('forgotPasswordModal');
+            if (forgotModal && !forgotModal.hidden) closeForgotPasswordModal();
         }
     });
 
@@ -688,7 +868,21 @@ bindHamburger();
 bindRequireAuth();
 initAvatarUploader();
 createProfileModal();
+createForgotPasswordModal();
+bindForgotPassword();
 initEmailValidation();
+
+document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const forgotBtn = target.closest('[data-forgot-password]');
+    if (forgotBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[forgot] Global handler caught click');
+        closeModal('authModal');
+        setTimeout(() => openForgotPasswordModal(), 200);
+    }
+});
 
 function updateBottomNav(): void {
     const path = window.location.pathname;
