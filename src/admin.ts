@@ -5,24 +5,28 @@ import {
     watchClaims, approveClaim, rejectClaim, createConversation,
     watchAllAdminMessages, getAdminMessagesForThread,
     buildAdminThreads, markAdminThreadAsRead, getUsersByIds,
-    watchUnreadMessages
+    watchUnreadMessages, watchPasswordResets, approvePasswordReset,
+    rejectPasswordReset
 } from './db';
 import { sendAdminMessageOffline } from './offline/wrappers';
 import { showToast, escapeHtml, formatDate } from './ui';
 import { runMatching } from './matcher';
-import type { Item, User, Notification, Claim, AdminMessage, AdminThread } from './types';
+import type { Item, User, Notification, Claim, AdminMessage, AdminThread, PasswordReset } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
 let allClaims: Claim[] = [];
 let allAdminMessages: AdminMessage[] = [];
 let allAdminThreads: AdminThread[] = [];
+let allPasswordResets: PasswordReset[] = [];
 let activeThread: AdminThread | null = null;
 let notifUnsubscribe: (() => void) | null = null;
 let adminMsgsUnsubscribe: (() => void) | null = null;
 let msgUnreadUnsub: (() => void) | null = null;
 let threadMsgsUnsubscribe: (() => void) | null = null;
+let pwdResetsUnsubscribe: (() => void) | null = null;
 let activeClaim: Claim | null = null;
+let activeReset: PasswordReset | null = null;
 let userMsgUnread = 0;
 let adminMsgUnread = 0;
 
@@ -38,6 +42,7 @@ const inquiryHeaderName = document.getElementById('inquiryHeaderName');
 const inquiryHeaderItem = document.getElementById('inquiryHeaderItem');
 const inquiryReplyForm = document.getElementById('inquiryReplyForm') as HTMLFormElement | null;
 const inquiryReplyInput = document.getElementById('inquiryReplyInput') as HTMLInputElement | null;
+const passwordResetsList = document.getElementById('passwordResetsList');
 
 function renderStats(): void {
     const total = document.getElementById('totalItems');
@@ -51,6 +56,205 @@ function renderStats(): void {
     if (found) found.textContent = String(allItems.filter(i => i.status === 'found' && !i.recovered).length);
     if (verified) verified.textContent = String(allItems.filter(i => i.verified && !i.recovered).length);
     if (recovered) recovered.textContent = String(allItems.filter(i => i.recovered).length);
+}
+
+function renderPasswordResets(): void {
+    if (!passwordResetsList) return;
+
+    const pending = allPasswordResets.filter(r => r.status === 'pending');
+    const countEl = document.getElementById('passwordResetsCount');
+    if (countEl) countEl.textContent = String(pending.length);
+
+    if (allPasswordResets.length === 0) {
+        passwordResetsList.innerHTML = '<div class="empty-state"><p>No password reset requests yet.</p></div>';
+        return;
+    }
+
+    passwordResetsList.innerHTML = allPasswordResets.map(reset => {
+        let statusClass = 'claim-status-pending';
+        let statusText = 'Pending';
+
+        if (reset.status === 'approved') {
+            statusClass = 'claim-status-approved';
+            statusText = 'Approved';
+        } else if (reset.status === 'rejected') {
+            statusClass = 'claim-status-rejected';
+            statusText = 'Rejected';
+        }
+
+        const info = userCache.get(reset.userId);
+        const avatar = info?.avatar;
+        const initial = (reset.userName || '?').charAt(0).toUpperCase();
+
+        const avatarHtml = avatar
+            ? `<img src="${avatar}" alt="${escapeHtml(reset.userName)}" class="claim-claimant-avatar">`
+            : `<span class="claim-claimant-avatar">${escapeHtml(initial)}</span>`;
+
+        let actionsHtml = '';
+        if (reset.status === 'pending') {
+            actionsHtml = `
+                <button class="admin-button" data-reset-action="review" data-id="${reset.id}">Review</button>
+            `;
+        } else if (reset.status === 'approved' && reset.tempPassword) {
+            actionsHtml = `
+                <span class="temp-password-badge">Temp: <code>${escapeHtml(reset.tempPassword)}</code></span>
+            `;
+        }
+
+        return `
+            <article class="claim-card">
+                <div class="claim-card-body">
+                    <div class="claim-card-head">
+                        <div>
+                            <strong class="claim-item-name">${escapeHtml(reset.userName)}</strong>
+                            <span class="claim-status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <small class="claim-date">${formatDate(reset.createdAt)}</small>
+                    </div>
+                    <div class="claim-claimant-row">
+                        ${avatarHtml}
+                        <span class="claim-claimant-name">${escapeHtml(reset.userEmail)}</span>
+                    </div>
+                    ${reset.adminNote ? `<div class="claim-admin-note"><strong>Admin Note:</strong> ${escapeHtml(reset.adminNote)}</div>` : ''}
+                    <div class="claim-actions">${actionsHtml}</div>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    passwordResetsList.querySelectorAll<HTMLButtonElement>('[data-reset-action="review"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            if (!id) return;
+            const reset = allPasswordResets.find(r => r.id === id);
+            if (!reset) return;
+            openPasswordResetModal(reset);
+        });
+    });
+}
+
+function generateTempPassword(): string {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let pwd = '';
+    for (let i = 0; i < 10; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pwd;
+}
+
+function openPasswordResetModal(reset: PasswordReset): void {
+    const modal = document.getElementById('passwordResetModal');
+    const info = document.getElementById('passwordResetInfo');
+    const noteInput = document.getElementById('passwordResetNote') as HTMLTextAreaElement | null;
+    const tempInput = document.getElementById('passwordResetTemp') as HTMLInputElement | null;
+    if (!modal || !info) return;
+
+    activeReset = reset;
+    if (noteInput) noteInput.value = '';
+    if (tempInput) tempInput.value = generateTempPassword();
+
+    info.innerHTML = `
+        <div class="review-row">
+            <span class="review-label">User</span>
+            <span class="review-value">${escapeHtml(reset.userName)}</span>
+        </div>
+        <div class="review-row">
+            <span class="review-label">Email</span>
+            <span class="review-value">${escapeHtml(reset.userEmail)}</span>
+        </div>
+        <div class="review-row">
+            <span class="review-label">Requested</span>
+            <span class="review-value">${formatDate(reset.createdAt)}</span>
+        </div>
+    `;
+
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function closePasswordResetModal(): void {
+    const modal = document.getElementById('passwordResetModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    activeReset = null;
+}
+
+async function handleApprovePasswordReset(): Promise<void> {
+    if (!activeReset || !currentUser) return;
+
+    const tempInput = document.getElementById('passwordResetTemp') as HTMLInputElement | null;
+    const noteInput = document.getElementById('passwordResetNote') as HTMLTextAreaElement | null;
+    const tempPassword = tempInput?.value.trim() || '';
+    const note = noteInput?.value.trim() || '';
+
+    if (!tempPassword) {
+        showToast('Please provide a temporary password.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('approveResetBtn') as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+
+    try {
+        await approvePasswordReset(activeReset.id, currentUser.uid, tempPassword, note);
+
+        await sendNotification(
+            activeReset.userId,
+            'password-reset',
+            `Your password reset request has been APPROVED. Your temporary password is: ${tempPassword}. Please log in and change your password immediately.`
+        );
+
+        try {
+            await sendAdminMessageOffline({
+                userId: activeReset.userId,
+                userName: activeReset.userName,
+                userEmail: activeReset.userEmail,
+                itemId: 'password-reset',
+                itemName: 'Password Reset',
+                senderRole: 'admin',
+                text: `Your password reset request has been approved. Temporary password: ${tempPassword}. Please log in and change your password immediately.`
+            });
+        } catch (msgErr) {
+            console.error('Failed to send admin message:', msgErr);
+        }
+
+        showToast('Password reset approved. User notified.', 'success');
+        closePasswordResetModal();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to approve request.', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function handleRejectPasswordReset(): Promise<void> {
+    if (!activeReset || !currentUser) return;
+
+    const noteInput = document.getElementById('passwordResetNote') as HTMLTextAreaElement | null;
+    const note = noteInput?.value.trim() || '';
+
+    const btn = document.getElementById('rejectResetBtn') as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+
+    try {
+        await rejectPasswordReset(activeReset.id, currentUser.uid, note);
+
+        await sendNotification(
+            activeReset.userId,
+            'password-reset',
+            `Your password reset request was not approved.${note ? ' Reason: ' + note : ''}`
+        );
+
+        showToast('Password reset rejected.', 'info');
+        closePasswordResetModal();
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to reject request.', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 function renderClaims(): void {
@@ -892,6 +1096,114 @@ function refreshMsgBadge(): void {
     });
 }
 
+function createAdminProfileModal(): void {
+    if (document.getElementById('profileModal')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'profileModal';
+    modal.className = 'modal';
+    modal.hidden = true;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `
+        <div class="modal-content profile-modal-content">
+            <button class="close-btn" id="closeProfileBtn" type="button" aria-label="Close dialog">&times;</button>
+            <div class="profile-modal-header">
+                <div class="profile-avatar-large" id="profileAvatarLarge"></div>
+                <h2 id="profileName">User</h2>
+                <p id="profileEmail">-</p>
+                <span class="profile-role-badge admin" id="profileRole">Admin</span>
+            </div>
+            <div class="profile-modal-menu">
+                <a href="items.html" class="profile-menu-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.3-4.3"></path>
+                    </svg>
+                    <span>Lost &amp; Found</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <a href="messages.html" class="profile-menu-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span>Messages</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <a href="notifications.html" class="profile-menu-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                    </svg>
+                    <span>Notifications</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+                <button class="profile-menu-item danger" id="profileLogoutBtn" type="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Logout</span>
+                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('closeProfileBtn')?.addEventListener('click', closeAdminProfileModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeAdminProfileModal();
+    });
+
+    document.getElementById('profileLogoutBtn')?.addEventListener('click', async () => {
+        closeAdminProfileModal();
+        await signOut();
+        window.location.href = 'index.html';
+    });
+}
+
+function openAdminProfileModal(): void {
+    if (!currentUser) return;
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+
+    const avatarEl = document.getElementById('profileAvatarLarge');
+    const nameEl = document.getElementById('profileName');
+    const emailEl = document.getElementById('profileEmail');
+    const roleEl = document.getElementById('profileRole');
+
+    if (avatarEl) {
+        if (currentUser.avatar) {
+            avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="${escapeHtml(currentUser.fullName)}">`;
+        } else {
+            avatarEl.textContent = currentUser.fullName.charAt(0).toUpperCase();
+        }
+    }
+    if (nameEl) nameEl.textContent = currentUser.fullName;
+    if (emailEl) emailEl.textContent = currentUser.email;
+    if (roleEl) roleEl.textContent = 'Admin';
+
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAdminProfileModal(): void {
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+}
+
 function renderAdminNav(): void {
     const navAuth = document.getElementById('navAuth');
     if (!navAuth || !currentUser) return;
@@ -914,7 +1226,13 @@ function renderAdminNav(): void {
                     </svg>
                 </button>
                 <div class="dropdown-menu" role="menu">
-                    <a href="javascript:void(0)" data-change-avatar class="dashboard" role="menuitem">Change Photo</a>
+                    <a href="javascript:void(0)" data-open-profile class="dashboard" role="menuitem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="5"></circle>
+                            <path d="M20 21a8 8 0 0 0-16 0"></path>
+                        </svg>
+                        Profile
+                    </a>
                     <a href="messages.html" class="dashboard" role="menuitem">Messages</a>
                     <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
                 </div>
@@ -935,9 +1253,11 @@ function renderAdminNav(): void {
         trigger.setAttribute('aria-expanded', String(userMenu!.classList.contains('active')));
     });
 
-    navAuth.querySelector('[data-change-avatar]')?.addEventListener('click', async () => {
-        const { openAvatarModal } = await import('./profile');
-        openAvatarModal();
+    navAuth.querySelector('[data-open-profile]')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        userMenu?.classList.remove('active');
+        trigger?.setAttribute('aria-expanded', 'false');
+        openAdminProfileModal();
     });
 
     navAuth.querySelector('[data-signout]')?.addEventListener('click', async () => {
@@ -962,6 +1282,9 @@ function bindUI(): void {
 
     document.getElementById('approveBtn')?.addEventListener('click', handleApprove);
     document.getElementById('rejectBtn')?.addEventListener('click', handleReject);
+
+    document.getElementById('approveResetBtn')?.addEventListener('click', handleApprovePasswordReset);
+    document.getElementById('rejectResetBtn')?.addEventListener('click', handleRejectPasswordReset);
 
     inquiryReplyForm?.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1062,6 +1385,7 @@ async function initializeAdmin(): Promise<void> {
 
         currentUser = profile;
         renderAdminNav();
+        createAdminProfileModal();
         bindUI();
 
         notifUnsubscribe = watchNotifications(currentUser.uid, (notifs) => {
@@ -1082,12 +1406,18 @@ async function initializeAdmin(): Promise<void> {
             refreshMsgBadge();
         });
 
+        pwdResetsUnsubscribe = watchPasswordResets((resets) => {
+            allPasswordResets = resets;
+            renderPasswordResets();
+        });
+
         watchItems(async items => {
             allItems = items;
 
             const uids = [...new Set(items.map(i => i.userId))];
             const claimUids = allClaims.map(c => c.userId);
-            const allUids = [...new Set([...uids, ...claimUids])];
+            const resetUids = allPasswordResets.map(r => r.userId);
+            const allUids = [...new Set([...uids, ...claimUids, ...resetUids])];
 
             try {
                 userCache = await getUsersByIds(allUids);
@@ -1098,6 +1428,7 @@ async function initializeAdmin(): Promise<void> {
             renderStats();
             renderTable();
             renderClaims();
+            renderPasswordResets();
         });
 
         watchClaims(async claims => {
