@@ -1,6 +1,6 @@
 import './pb';
 import { pb } from './pb';
-import { onAuthChange, getUserProfile, signOut, signIn, signUp } from './auth';
+import { onAuthChange, getUserProfile, signOut, signIn, signUp, isValidPhinmaEdEmail } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
 import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
 import { initAvatarUploader } from './profile';
@@ -190,6 +190,13 @@ function updateNavAuth(user: User | null): void {
                         </svg>
                     </button>
                     <div class="dropdown-menu" role="menu">
+                        <a href="javascript:void(0)" data-open-profile class="dashboard" role="menuitem">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="8" r="5"></circle>
+                                <path d="M20 21a8 8 0 0 0-16 0"></path>
+                            </svg>
+                            Profile
+                        </a>
                         <a href="javascript:void(0)" data-change-avatar class="dashboard" role="menuitem">Change Photo</a>
                         <a href="messages.html" class="dashboard" role="menuitem">Messages</a>
                         ${isAdmin ? '<a href="admin.html" class="dashboard" role="menuitem">Dashboard</a>' : ''}
@@ -210,6 +217,13 @@ function updateNavAuth(user: User | null): void {
                 'aria-expanded',
                 String(userMenu.classList.contains('active'))
             );
+        });
+
+        navAuth.querySelector('[data-open-profile]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userMenu.classList.remove('active');
+            trigger.setAttribute('aria-expanded', 'false');
+            openProfileModal();
         });
 
         navAuth.querySelector('[data-change-avatar]')?.addEventListener('click', async () => {
@@ -437,6 +451,48 @@ function hideAuthMessage(): void {
     el.className = 'auth-message';
 }
 
+function initEmailValidation(): void {
+    const emailInputs = document.querySelectorAll<HTMLInputElement>('input[type="email"][data-phinmaed]');
+
+    emailInputs.forEach(input => {
+        const wrapper = input.closest('.form-group');
+        if (!wrapper) return;
+
+        let feedbackEl = wrapper.querySelector<HTMLElement>('.email-feedback');
+        if (!feedbackEl) {
+            feedbackEl = document.createElement('small');
+            feedbackEl.className = 'email-feedback';
+            input.parentElement?.appendChild(feedbackEl);
+        }
+
+        const validate = () => {
+            const value = input.value.trim();
+            input.classList.remove('email-valid', 'email-invalid');
+
+            if (!value) {
+                feedbackEl!.textContent = 'Use your official PHINMAEd email';
+                feedbackEl!.className = 'email-feedback';
+                return;
+            }
+
+            const isValid = isValidPhinmaEdEmail(value);
+
+            if (isValid) {
+                input.classList.add('email-valid');
+                feedbackEl!.textContent = '✓ Valid PHINMAEd email';
+                feedbackEl!.className = 'email-feedback success';
+            } else {
+                input.classList.add('email-invalid');
+                feedbackEl!.textContent = '✗ Must end with @phinmaed.com';
+                feedbackEl!.className = 'email-feedback error';
+            }
+        };
+
+        input.addEventListener('input', validate);
+        input.addEventListener('blur', validate);
+    });
+}
+
 function bindForms(): void {
     const signinForm = document.getElementById('signinForm') as HTMLFormElement | null;
     const signupForm = document.getElementById('signupForm') as HTMLFormElement | null;
@@ -447,6 +503,11 @@ function bindForms(): void {
 
         const email = (document.getElementById('signinEmail') as HTMLInputElement).value.trim();
         const password = (document.getElementById('signinPassword') as HTMLInputElement).value;
+
+        if (!isValidPhinmaEdEmail(email)) {
+            showAuthMessage('Please use your PHINMAEd email.', 'error');
+            return;
+        }
 
         pulseSync(900);
 
@@ -476,6 +537,11 @@ function bindForms(): void {
         const password = (document.getElementById('signupPassword') as HTMLInputElement).value;
         const confirmPassword = (document.getElementById('signupConfirmPassword') as HTMLInputElement).value;
 
+        if (!isValidPhinmaEdEmail(email)) {
+            showAuthMessage('Please use your PHINMAEd email (name@phinmaed.com).', 'error');
+            return;
+        }
+
         pulseSync(900);
 
         const result = await signUp(fullName, email, password, confirmPassword);
@@ -483,6 +549,13 @@ function bindForms(): void {
         if (result.success) {
             showAuthMessage(result.message, 'success');
             signupForm.reset();
+            document.querySelectorAll('.email-feedback').forEach(el => {
+                el.textContent = 'Use your official PHINMAEd email';
+                el.className = 'email-feedback';
+            });
+            document.querySelectorAll('.email-valid, .email-invalid').forEach(el => {
+                el.classList.remove('email-valid', 'email-invalid');
+            });
             setTimeout(() => {
                 showTab('signin');
                 const signinEmail = document.getElementById('signinEmail') as HTMLInputElement;
@@ -637,6 +710,7 @@ bindHamburger();
 bindRequireAuth();
 initAvatarUploader();
 createProfileModal();
+initEmailValidation();
 
 function updateBottomNav(): void {
     const path = window.location.pathname;

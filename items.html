@@ -177,7 +177,7 @@
             <form id="signinForm" class="auth-form" novalidate>
                 <div class="form-group">
                     <label for="signinEmail">PHINMAEd Email</label>
-                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                 </div>
                 <div class="form-group">
                     <label for="signinPassword">Password</label>
@@ -199,7 +199,7 @@
                 </div>
                 <div class="form-group">
                     <label for="signupEmail">PHINMAEd Email</label>
-                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                 </div>
                 <div class="form-group">
                     <label for="signupPassword">Password</label>

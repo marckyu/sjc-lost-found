@@ -155,7 +155,7 @@
             <form id="signinForm" class="auth-form" novalidate>
                 <div class="form-group">
                     <label for="signinEmail">PHINMAEd Email</label>
-                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <input id="signinEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                     <small class="guide">Use your official PHINMAEd email</small>
                 </div>
                 <div class="form-group">
@@ -180,7 +180,7 @@
                 </div>
                 <div class="form-group">
                     <label for="signupEmail">PHINMAEd Email</label>
-                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required>
+                    <input id="signupEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                     <small class="guide">Must end with @phinmaed.com</small>
                 </div>
                 <div class="form-group">
