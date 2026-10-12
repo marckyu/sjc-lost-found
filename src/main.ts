@@ -197,7 +197,6 @@ function updateNavAuth(user: User | null): void {
                             </svg>
                             Profile
                         </a>
-                        <a href="javascript:void(0)" data-change-avatar class="dashboard" role="menuitem">Change Photo</a>
                         <a href="messages.html" class="dashboard" role="menuitem">Messages</a>
                         ${isAdmin ? '<a href="admin.html" class="dashboard" role="menuitem">Dashboard</a>' : ''}
                         <a href="javascript:void(0)" data-signout role="menuitem" class="danger">Logout</a>
@@ -224,11 +223,6 @@ function updateNavAuth(user: User | null): void {
             userMenu.classList.remove('active');
             trigger.setAttribute('aria-expanded', 'false');
             openProfileModal();
-        });
-
-        navAuth.querySelector('[data-change-avatar]')?.addEventListener('click', async () => {
-            const { openAvatarModal } = await import('./profile');
-            openAvatarModal();
         });
 
         navAuth.querySelector('[data-signout]')?.addEventListener('click', async () => {
@@ -271,16 +265,6 @@ function createProfileModal(): void {
                 <span class="profile-role-badge" id="profileRole">Member</span>
             </div>
             <div class="profile-modal-menu">
-                <button class="profile-menu-item" id="profileChangePhotoBtn" type="button">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                        <circle cx="12" cy="13" r="4"></circle>
-                    </svg>
-                    <span>Change Photo</span>
-                    <svg class="menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                </button>
                 <a href="items.html" class="profile-menu-item">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="11" cy="11" r="8"></circle>
@@ -341,12 +325,6 @@ function createProfileModal(): void {
     document.getElementById('closeProfileBtn')?.addEventListener('click', closeProfileModal);
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closeProfileModal();
-    });
-
-    document.getElementById('profileChangePhotoBtn')?.addEventListener('click', async () => {
-        closeProfileModal();
-        const { openAvatarModal } = await import('./profile');
-        openAvatarModal();
     });
 
     document.getElementById('profileLogoutBtn')?.addEventListener('click', async () => {
