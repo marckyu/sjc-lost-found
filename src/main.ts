@@ -2,7 +2,7 @@ import './pb';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile, signOut, signIn, signUp, isValidPhinmaEdEmail } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
-import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages, createPasswordReset, findUserByEmail } from './db';
+import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
 import { initAvatarUploader } from './profile';
 import { initSync } from './offline/sync';
 import { initOfflineIndicator, pulseSync } from './offline/indicator';
@@ -511,21 +511,22 @@ async function handleForgotPasswordSubmit(e: Event): Promise<void> {
     }
 
     try {
-        const user = await findUserByEmail(email);
+        // Tatawagin natin yung bagong custom hook endpoint sa PocketBase
+        await pb.send("/api/password-reset-lookup", {
+            method: "POST",
+            body: JSON.stringify({ 
+                email: email,
+                reason: reasonInput?.value.trim() || '' 
+            })
+        });
 
-        if (!user) {
-            showForgotMessage('No account found with that email.', 'error');
-            return;
-        }
-
-        await createPasswordReset(user.id, user.fullname, user.email);
-
-        showForgotMessage('Request submitted! Admin will contact you soon.', 'success');
+        // Palaging success ang message (para hindi ma-hack)
+        showForgotMessage('If an account exists, a reset email has been sent to your inbox.', 'success');
 
         setTimeout(() => {
             closeForgotPasswordModal();
-            showToast('Password reset request sent. Please check your messages.', 'success');
-        }, 1800);
+            showToast('Password reset request sent. Please check your email.', 'success');
+        }, 2000);
     } catch (err) {
         console.error(err);
         showForgotMessage('Failed to submit request. Try again.', 'error');
