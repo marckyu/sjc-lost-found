@@ -489,7 +489,7 @@ async function handleSendOtp(e: Event): Promise<void> {
     submitBtn.innerHTML = '<span class="spinner"></span> Sending...';
 
     try {
-        await pb.send("/api/request-otp", {
+        await pb.send("/request-otp", {
             method: "POST",
             body: JSON.stringify({ email })
         });
@@ -533,7 +533,7 @@ async function handleVerifyOtp(e: Event): Promise<void> {
     submitBtn.innerHTML = '<span class="spinner"></span> Resetting...';
 
     try {
-        await pb.send("/api/verify-otp", {
+        await pb.send("/verify-otp", {
             method: "POST",
             body: JSON.stringify({ email, otp, password })
         });
