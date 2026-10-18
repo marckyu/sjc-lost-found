@@ -1,6 +1,6 @@
 /// <reference path="../pb_data/types.d.ts" />
 
-routerAdd("POST", "/api/password-reset-lookup", (c) => {
+routerAdd("POST", "/api/request-otp", (c) => {
     const data = $apis.requestInfo(c).data;
     const email = (data.email || "").toLowerCase().trim();
 
@@ -9,54 +9,87 @@ routerAdd("POST", "/api/password-reset-lookup", (c) => {
     }
 
     try {
-        // Hanapin ang user
         const user = $app.findAuthRecordByEmail("users", email);
         
         if (user) {
-            // 1. Gumawa ng random na 8-character na temporary password
-            const tempPassword = $security.randomString(8);
+            const otpCode = $security.randomStringWithAlphabet(6, "0123456789");
             
-            // 2. I-set ang bagong password sa user at i-save sa database
-            user.setPassword(tempPassword);
-            $app.save(user);
+            const otpRecord = new Record($app.findCollectionByNameOrId("otp_codes"));
+            otpRecord.set("email", email);
+            otpRecord.set("code", otpCode);
+            
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 10);
+            otpRecord.set("expiresAt", now.toISOString());
 
-            // 3. Gumawa ng email message
+            $app.save(otpRecord);
+
             const message = new MailerMessage({
                 from: {
                     address: $app.settings().meta.senderAddress,
                     name: $app.settings().meta.senderName,
                 },
                 to: [{ address: email }],
-                subject: "SJC Lost & Found - Password Reset",
+                subject: "SJC Lost & Found - Password Reset OTP",
                 html: `
                     <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 10px;">
                         <h2 style="color: #166534;">Password Reset Request</h2>
                         <p>Hi <strong>${user.getString("fullname") || "User"}</strong>,</p>
-                        <p>We received a request to reset your password. Here is your temporary password:</p>
+                        <p>Your One-Time Password (OTP) to reset your account is:</p>
                         <div style="background: #f0fdf4; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0; border: 1px solid #bbf7d0;">
-                            <h3 style="margin: 0; color: #166534; letter-spacing: 2px;">${tempPassword}</h3>
+                            <h1 style="margin: 0; color: #166534; letter-spacing: 5px;">${otpCode}</h1>
                         </div>
-                        <p>Please log in using this temporary password and change it immediately in your profile settings.</p>
-                        <p style="color: #666; font-size: 12px; margin-top: 30px;">If you did not request this, please ignore this email.</p>
+                        <p>This code is valid for 10 minutes. If you did not request this, please ignore this email.</p>
                     </div>
                 `,
             });
 
-            // 4. I-send ang email gamit ang SMTP settings sa PocketBase
             try {
                 $app.newMailClient().send(message);
-                console.log("SUCCESS: Password reset email sent to " + email);
+                console.log("OTP sent to: " + email);
             } catch (err) {
-                console.log("ERROR: Failed to send password reset email:", err);
+                console.log("Failed to send email:", err);
             }
         }
     } catch (err) {
-        // User not found — sadyang hindi tayo mag-e-error para sa security
-        console.log("Password reset requested for non-existent user: " + email);
+        console.log("OTP requested for non-existent user: " + email);
     }
 
-    // 5. Palaging same response (Para hindi ma-hack/enumerate ang users)
-    return c.json(200, { 
-        message: "If an account exists, a reset email has been sent." 
-    });
+    return c.json(200, { message: "If an account exists, an OTP has been sent." });
+});
+
+routerAdd("POST", "/api/verify-otp", (c) => {
+    const data = $apis.requestInfo(c).data;
+    const email = (data.email || "").toLowerCase().trim();
+    const otpCode = (data.otp || "").trim();
+    const newPassword = data.password;
+
+    if (!email || !otpCode || !newPassword) {
+        return c.json(400, { error: "Email, OTP, and new password are required" });
+    }
+    if (newPassword.length < 6) {
+        return c.json(400, { error: "Password must be at least 6 characters" });
+    }
+
+    try {
+        const otpRecord = $app.findFirstRecordByFilter("otp_codes", 
+            "email = {:email} && code = {:code}", 
+            { email: email, code: otpCode }
+        );
+
+        const expiresAt = new Date(otpRecord.get("expiresAt"));
+        if (new Date() > expiresAt) {
+            return c.json(400, { error: "OTP has expired" });
+        }
+
+        const user = $app.findAuthRecordByEmail("users", email);
+        user.setPassword(newPassword);
+        $app.save(user);
+
+        $app.delete(otpRecord);
+
+        return c.json(200, { success: true, message: "Password successfully reset" });
+    } catch (err) {
+        return c.json(400, { error: "Invalid OTP code" });
+    }
 });
