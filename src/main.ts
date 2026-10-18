@@ -378,64 +378,60 @@ function closeProfileModal(): void {
 }
 
 function createForgotPasswordModal(): void {
-    if (document.getElementById('forgotPasswordModal')) {
-        console.log('[forgot] Modal already exists, skipping creation');
-        return;
-    }
-
-    console.log('[forgot] Creating modal...');
+    if (document.getElementById('forgotPasswordModal')) return;
 
     const modal = document.createElement('div');
     modal.id = 'forgotPasswordModal';
     modal.className = 'modal';
     modal.hidden = true;
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
     modal.innerHTML = `
         <div class="modal-content forgot-password-content">
-            <button class="close-btn" id="closeForgotBtn" type="button" aria-label="Close dialog">&times;</button>
+            <button class="close-btn" id="closeForgotBtn" type="button">&times;</button>
             <div class="modal-intro">
                 <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
                 <div>
                     <h2>Forgot Password</h2>
-                    <p>Enter your PHINMAEd email to request a password reset.</p>
+                    <p id="forgotSubtitle">Enter your PHINMAEd email to request a reset OTP.</p>
                 </div>
             </div>
             <div class="auth-message" id="forgotMessage" role="alert"></div>
-            <form id="forgotPasswordForm" novalidate>
+            
+            <form id="forgotStep1" novalidate>
                 <div class="form-group">
                     <label for="forgotEmail">PHINMAEd Email</label>
                     <input id="forgotEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                 </div>
-                <div class="form-group">
-                    <label for="forgotReason">Additional Information (optional)</label>
-                    <textarea id="forgotReason" placeholder="Optional: anything that might help the admin verify your identity" maxlength="300"></textarea>
-                </div>
-                <button class="submit-button" type="submit">Submit Request</button>
-                <p class="form-footer">
-                    Remember your password?
-                    <button type="button" class="inline-button" data-back-to-signin>Back to Sign In</button>
-                </p>
+                <button class="submit-button" type="submit" id="sendOtpBtn">Send OTP</button>
             </form>
+
+            <form id="forgotStep2" hidden novalidate>
+                <div class="form-group">
+                    <label for="forgotOtp">6-Digit OTP Code</label>
+                    <input id="forgotOtp" type="text" placeholder="123456" maxlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label for="forgotNewPassword">New Password</label>
+                    <input id="forgotNewPassword" type="password" placeholder="At least 6 characters" required>
+                </div>
+                <button class="submit-button" type="submit" id="resetPasswordBtn">Reset Password</button>
+            </form>
+
+            <p class="form-footer">
+                Remember your password?
+                <button type="button" class="inline-button" data-back-to-signin>Back to Sign In</button>
+            </p>
         </div>
     `;
     document.body.appendChild(modal);
 
-    console.log('[forgot] Modal appended to body');
-
     document.getElementById('closeForgotBtn')?.addEventListener('click', closeForgotPasswordModal);
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeForgotPasswordModal();
-    });
-
     document.querySelector('[data-back-to-signin]')?.addEventListener('click', () => {
         closeForgotPasswordModal();
         openAuthModal('signin');
     });
 
-    document.getElementById('forgotPasswordForm')?.addEventListener('submit', handleForgotPasswordSubmit);
-
-    console.log('[forgot] Modal event listeners attached');
+    document.getElementById('forgotStep1')?.addEventListener('submit', handleSendOtp);
+    document.getElementById('forgotStep2')?.addEventListener('submit', handleVerifyOtp);
 }
 
 function showForgotMessage(msg: string, type: 'success' | 'error'): void {
@@ -447,11 +443,7 @@ function showForgotMessage(msg: string, type: 'success' | 'error'): void {
 
 function openForgotPasswordModal(): void {
     const modal = document.getElementById('forgotPasswordModal');
-    console.log('[forgot] Opening modal. Exists:', !!modal);
-    if (!modal) {
-        console.error('[forgot] Modal not found in DOM!');
-        return;
-    }
+    if (!modal) return;
 
     const emailInput = document.getElementById('forgotEmail') as HTMLInputElement | null;
     const signinEmail = document.getElementById('signinEmail') as HTMLInputElement | null;
@@ -460,9 +452,10 @@ function openForgotPasswordModal(): void {
         emailInput.value = signinEmail.value;
     }
 
-    const reasonInput = document.getElementById('forgotReason') as HTMLTextAreaElement | null;
-    if (reasonInput) reasonInput.value = '';
-
+    document.getElementById('forgotStep1')!.hidden = false;
+    document.getElementById('forgotStep2')!.hidden = true;
+    document.getElementById('forgotSubtitle')!.textContent = 'Enter your PHINMAEd email to request a reset OTP.';
+    
     const msgEl = document.getElementById('forgotMessage');
     if (msgEl) {
         msgEl.textContent = '';
@@ -471,10 +464,7 @@ function openForgotPasswordModal(): void {
 
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
-
     setTimeout(() => emailInput?.focus(), 100);
-
-    console.log('[forgot] Modal opened successfully');
 }
 
 function closeForgotPasswordModal(): void {
@@ -484,71 +474,93 @@ function closeForgotPasswordModal(): void {
     document.body.style.overflow = '';
 }
 
-async function handleForgotPasswordSubmit(e: Event): Promise<void> {
+async function handleSendOtp(e: Event): Promise<void> {
     e.preventDefault();
-
-    const emailInput = document.getElementById('forgotEmail') as HTMLInputElement | null;
-    const reasonInput = document.getElementById('forgotReason') as HTMLTextAreaElement | null;
-    const submitBtn = document.querySelector<HTMLButtonElement>('#forgotPasswordForm .submit-button');
-
-    if (!emailInput) return;
-
+    const emailInput = document.getElementById('forgotEmail') as HTMLInputElement;
+    const submitBtn = document.getElementById('sendOtpBtn') as HTMLButtonElement;
     const email = emailInput.value.trim().toLowerCase();
-
-    if (!email) {
-        showForgotMessage('Please enter your email.', 'error');
-        return;
-    }
 
     if (!isValidPhinmaEdEmail(email)) {
         showForgotMessage('Please enter a valid PHINMAEd email.', 'error');
         return;
     }
 
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
-    }
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Sending...';
 
     try {
-        // Tatawagin natin yung bagong custom hook endpoint sa PocketBase
-        await pb.send("/api/password-reset-lookup", {
+        await pb.send("/api/request-otp", {
             method: "POST",
-            body: JSON.stringify({ 
-                email: email,
-                reason: reasonInput?.value.trim() || '' 
-            })
+            body: JSON.stringify({ email })
         });
 
-        // Palaging success ang message (para hindi ma-hack)
-        showForgotMessage('If an account exists, a reset email has been sent to your inbox.', 'success');
-
-        setTimeout(() => {
-            closeForgotPasswordModal();
-            showToast('Password reset request sent. Please check your email.', 'success');
-        }, 2000);
+        showForgotMessage('OTP sent to your email!', 'success');
+        
+        document.getElementById('forgotStep1')!.hidden = true;
+        document.getElementById('forgotStep2')!.hidden = false;
+        document.getElementById('forgotSubtitle')!.textContent = `Enter the OTP sent to ${email}`;
+        
     } catch (err) {
         console.error(err);
-        showForgotMessage('Failed to submit request. Try again.', 'error');
+        showForgotMessage('Failed to send OTP. Try again.', 'error');
     } finally {
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Submit Request';
-        }
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send OTP';
+    }
+}
+
+async function handleVerifyOtp(e: Event): Promise<void> {
+    e.preventDefault();
+    const emailInput = document.getElementById('forgotEmail') as HTMLInputElement;
+    const otpInput = document.getElementById('forgotOtp') as HTMLInputElement;
+    const passInput = document.getElementById('forgotNewPassword') as HTMLInputElement;
+    const submitBtn = document.getElementById('resetPasswordBtn') as HTMLButtonElement;
+
+    const email = emailInput.value.trim().toLowerCase();
+    const otp = otpInput.value.trim();
+    const password = passInput.value;
+
+    if (otp.length !== 6) {
+        showForgotMessage('OTP must be 6 digits.', 'error');
+        return;
+    }
+    if (password.length < 6) {
+        showForgotMessage('Password must be at least 6 characters.', 'error');
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Resetting...';
+
+    try {
+        await pb.send("/api/verify-otp", {
+            method: "POST",
+            body: JSON.stringify({ email, otp, password })
+        });
+
+        showForgotMessage('Password successfully reset! You can now log in.', 'success');
+        
+        setTimeout(() => {
+            closeForgotPasswordModal();
+            showToast('Password reset successful.', 'success');
+        }, 2000);
+        
+    } catch (err: any) {
+        showForgotMessage(err?.response?.error || 'Invalid OTP. Try again.', 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Reset Password';
     }
 }
 
 function bindForgotPassword(): void {
     const buttons = document.querySelectorAll<HTMLElement>('[data-forgot-password]');
-    console.log('[forgot] Found buttons:', buttons.length);
-
     buttons.forEach(btn => {
         if (btn.dataset.bound === '1') return;
         btn.dataset.bound = '1';
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('[forgot] Button clicked!');
             closeModal('authModal');
             setTimeout(() => openForgotPasswordModal(), 200);
         });
@@ -879,7 +891,6 @@ document.addEventListener('click', (e) => {
     if (forgotBtn) {
         e.preventDefault();
         e.stopPropagation();
-        console.log('[forgot] Global handler caught click');
         closeModal('authModal');
         setTimeout(() => openForgotPasswordModal(), 200);
     }
