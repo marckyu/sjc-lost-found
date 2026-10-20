@@ -4,16 +4,17 @@ A Progressive Web App (PWA) for reporting and recovering lost items at Saint Jud
 
 ## Overview
 
-SJC Campus Lost & Found is a full-stack web application designed to streamline the process of reporting, searching, and recovering lost belongings within the campus community. The system features AI-assisted item matching, real-time notifications, secure in-app messaging, and offline-first capability.
+SJC Campus Lost & Found is a full-stack web application designed to streamline the process of reporting, searching, and recovering lost belongings within the campus community. The system features AI-assisted item matching, real-time notifications, secure in-app messaging, an offline-first capability, and a secure OTP-based password recovery system.
 
 ## Key Features
 
 - **User Authentication** — PHINMAEd email-based sign-up with role-based access (user / admin)
+- **Secure Password Reset (OTP)** — Forgot password flow using a 6-digit email OTP with a 10-minute expiration and a manual admin fallback.
 - **Item Reporting** — Report lost or found items with images, category, location, and description
 - **AI-Assisted Matching** — Hybrid matching engine using text similarity and perceptual image hashing
 - **Real-Time Notifications** — Instant updates powered by PocketBase realtime subscriptions
 - **In-App Messaging** — Secure user-to-user chat and admin inquiry threads
-- **Admin Dashboard** — Verify reports, review ownership claims, manage users, send notifications
+- **Admin Dashboard** — Verify reports, review ownership claims, manage users, send notifications, and process password reset requests
 - **Offline-First** — Submit reports, claims, and messages offline; automatic sync when connected
 - **Progressive Web App** — Installable on mobile devices
 
@@ -22,11 +23,11 @@ SJC Campus Lost & Found is a full-stack web application designed to streamline t
 | Layer | Technology |
 |-------|------------|
 | Frontend | Vite + TypeScript + Vanilla HTML/CSS |
-| Backend | PocketBase (SQLite + realtime subscriptions) |
+| Backend | PocketBase (SQLite + realtime subscriptions + Custom JS Hooks) |
 | AI / Image Service | Python Flask + Pillow + ImageHash |
 | Offline Storage | IndexedDB (via idb) |
 | PWA | Service Worker + Web Manifest |
-| Deployment | Vercel (frontend) + Cloudflare Tunnel (backend) |
+| Deployment | Vercel (frontend) + Wisbyte (PocketBase backend) + Cloudflare Tunnel (AI service) |
 
 ## Project Structure
 
@@ -35,7 +36,7 @@ SJC Campus Lost & Found is a full-stack web application designed to streamline t
     ├── src/                     TypeScript source
     │   └── offline/             Offline-first engine
     ├── python-service/          AI image similarity microservice
-    ├── pocketbase/              PocketBase binary + migrations + hooks
+    ├── pocketbase/              PocketBase binary + pb_hooks + migrations
     ├── index.html               Landing page
     ├── items.html               Browse items
     ├── report.html              Report form
@@ -77,6 +78,8 @@ Terminal 1 — PocketBase:
 Terminal 2 — Python AI service:
 
     cd python-service
+    # Windows: .venv\Scripts\activate
+    # Mac/Linux: source .venv/bin/activate
     python app.py
 
 Terminal 3 — Vite dev server:
@@ -97,7 +100,7 @@ The system follows a three-tier architecture.
 
 **Client:** Vite + TypeScript multi-page application. Six HTML entry points, each loading its own module. Shared infrastructure handles PocketBase client, auth, data access, UI helpers, and types.
 
-**Backend:** PocketBase provides SQLite database, REST + realtime WebSocket API, file storage, auth with PHINMAEd email validation, admin UI, and custom hooks.
+**Backend:** PocketBase provides SQLite database, REST + realtime WebSocket API, file storage, auth with PHINMAEd email validation, admin UI, and custom JS hooks. The `pb_hooks` folder contains custom server-side logic for generating secure OTPs and handling password resets.
 
 **AI Image Service:** Python Flask microservice. Accepts two arrays of image URLs, returns a similarity score using perceptual hashing (pHash 50%, dHash 30%, aHash 20%) with Hamming distance.
 
@@ -126,9 +129,20 @@ The system follows a three-tier architecture.
 8. Conversation created between owner and claimant
 9. User notified, chat unlocked
 
+### Data Flow — Password Reset (OTP)
+
+1. User clicks "Forgot Password" and enters their PHINMAEd email.
+2. Frontend sends a POST request to the custom PocketBase route `/request-otp`.
+3. Backend generates a 6-digit numeric OTP and saves it to the `otp_codes` collection with a 10-minute expiration.
+4. Backend uses PocketBase's mailer to send the OTP via SMTP to the user's email.
+5. User enters the OTP and their new password on the frontend.
+6. Frontend sends a POST request to `/verify-otp`.
+7. Backend validates the OTP against the database and checks if it has not expired.
+8. If valid, the password is updated, and the OTP is deleted from the database to prevent reuse.
+
 ## Database Schema
 
-Database is managed by PocketBase (SQLite). Eight collections.
+Database is managed by PocketBase (SQLite). Nine collections.
 
 ### users
 
@@ -236,6 +250,15 @@ Database is managed by PocketBase (SQLite). Eight collections.
 | matchReason | text | explanation |
 | status | select | pending/confirmed/rejected/completed |
 
+### otp_codes
+
+| Field | Type | Notes |
+|-------|------|-------|
+| id | text | PK |
+| email | text | user's email |
+| code | text | 6-digit OTP |
+| expiresAt | datetime | 10 minutes from generation |
+
 ## Offline-First Feature
 
 ### Why Offline-First
@@ -303,24 +326,18 @@ The queue is processed when:
 4. Add env vars: VITE_PB_URL and VITE_MATCHER_URL
 5. Deploy
 
-### Backend — PocketBase + Cloudflare Tunnel
+### Backend — PocketBase (Hosted on Wisbyte)
 
-On your server:
+The PocketBase backend and database are hosted on Wisbyte.
 
-    cd pocketbase
-    ./pocketbase serve --http=0.0.0.0:8090
+1. Log in to your Wisbyte dashboard.
+2. Get the public URL provided by Wisbyte (e.g., `https://your-app.wisbyte.dev`).
+3. Set this URL as `VITE_PB_URL` in your Vercel environment variables.
+4. Configure CORS in Wisbyte to allow requests from your Vercel frontend URL.
+5. Upload the custom hook file (`password_reset.pb.js`) to the `pb_hooks` folder via the Wisbyte file manager.
+6. Restart the Wisbyte server to apply the new hooks.
 
-In another terminal:
-
-    cloudflared tunnel --url http://localhost:8090
-
-Copy the generated https URL into Vercel's VITE_PB_URL.
-
-Configure CORS:
-
-    ./pocketbase serve --origins="https://your-app.vercel.app,http://localhost:5173"
-
-### AI Service — Cloudflare Tunnel
+### AI Service — Cloudflare Tunnel (Local / Defense Setup)
 
     cd python-service
     python app.py
@@ -338,6 +355,8 @@ Copy the tunnel URL into VITE_MATCHER_URL.
 **Image matching not working** — Check Python service at http://localhost:5000/health. Text matching still works offline.
 
 **Syncing stuck** — DevTools, Application, IndexedDB, sjc-lost-found, queue, Delete database, Refresh.
+
+**OTP not received / Failed to send OTP** — Check Wisbyte logs for `SMTP ERROR`. Verify that SMTP settings (host, port, username, password, sender address) are properly configured in the PocketBase Admin UI > Settings > Mail settings. Ensure the `otp_codes` collection exists.
 
 ## Team ArkNights
 
