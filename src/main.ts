@@ -578,9 +578,16 @@ function bindAuthButtons(): void {
     });
 }
 
+function resetEmailFeedback(): void {
+    document.querySelectorAll<HTMLInputElement>('input[type="email"][data-phinmaed]').forEach(input => {
+        input.dispatchEvent(new Event('input'));
+    });
+}
+
 function openAuthModal(tab: 'signin' | 'signup'): void {
     openModal('authModal');
-    hideAuthMessage(); // FIX: Clear messages when modal opens
+    hideAuthMessage();
+    resetEmailFeedback();
     showTab(tab);
     setTimeout(() => bindForgotPassword(), 100);
 }
@@ -606,7 +613,7 @@ function showTab(tab: 'signin' | 'signup'): void {
             : 'Sign up with your PHINMAEd email to get started.';
     }
 
-    hideAuthMessage(); // FIX: Clear messages when switching tabs
+    hideAuthMessage();
 }
 
 function showAuthMessage(msg: string, type: 'success' | 'error'): void {
@@ -630,11 +637,7 @@ function initEmailValidation(): void {
         const wrapper = input.closest('.form-group');
         if (!wrapper) return;
 
-        // FIX: Tanggalin ang static na guide text sa HTML para hindi madoble
-        const guideEl = wrapper.querySelector('.guide');
-        if (guideEl) {
-            guideEl.remove();
-        }
+        wrapper.querySelector('.guide')?.remove();
 
         let feedbackEl = wrapper.querySelector<HTMLElement>('.email-feedback');
         if (!feedbackEl) {
@@ -653,9 +656,7 @@ function initEmailValidation(): void {
                 return;
             }
 
-            const isValid = isValidPhinmaEdEmail(value);
-
-            if (isValid) {
+            if (isValidPhinmaEdEmail(value)) {
                 input.classList.add('email-valid');
                 feedbackEl!.textContent = '✓ Valid PHINMAEd email';
                 feedbackEl!.className = 'email-feedback success';
@@ -668,6 +669,8 @@ function initEmailValidation(): void {
 
         input.addEventListener('input', validate);
         input.addEventListener('blur', validate);
+
+        validate();
     });
 }
 
