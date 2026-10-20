@@ -501,7 +501,7 @@ async function handleSendOtp(e: Event): Promise<void> {
     try {
         await pb.send("/request-otp", {
             method: "POST",
-            body: JSON.stringify({ email })
+            body: { email }
         });
 
         showForgotMessage('OTP sent to your email!', 'success');
@@ -545,7 +545,7 @@ async function handleVerifyOtp(e: Event): Promise<void> {
     try {
         await pb.send("/verify-otp", {
             method: "POST",
-            body: JSON.stringify({ email, otp, password })
+            body: { email, otp, password }
         });
 
         showForgotMessage('Password successfully reset! You can now log in.', 'success');
