@@ -205,6 +205,22 @@
                     <button type="button" class="inline-button" data-auth-tab="signin">Sign in</button>
                 </p>
             </form>
+            <form id="signupOtpForm" class="auth-form" hidden novalidate>
+                <div class="form-group">
+                    <label for="signupOtp">Verification Code</label>
+                    <input id="signupOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" required>
+                    <small class="guide" id="signupOtpHint">We sent a code to your PHINMAEd email. It expires in 10 minutes.</small>
+                </div>
+                <p id="signupOtpError" role="alert" style="color:#dc2626;font-size:13px;margin:0 0 10px;" hidden></p>
+                <button class="submit-button" type="submit" id="signupOtpSubmit">Verify &amp; Create Account</button>
+                <p class="form-footer">
+                    Didn't get it?
+                    <button type="button" class="inline-button" id="signupResendOtp">Resend code</button>
+                </p>
+                <p class="form-footer" style="border-top: 0; padding-top: 0; margin-top: 0;">
+                    <button type="button" class="inline-button" id="signupOtpBack">← Back</button>
+                </p>
+            </form>
         </div>
     </div>
 

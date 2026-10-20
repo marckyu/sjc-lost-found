@@ -51,38 +51,72 @@ function refreshSession(): Promise<void> {
     return refreshOnce;
 }
 
-export async function signUp(
+function validateSignupFields(
+    fullName: string,
+    email: string,
+    password: string,
+    confirmPassword: string
+): string | null {
+    if (!fullName || !email || !password || !confirmPassword) return 'Please fill in all fields.';
+    if (!isValidPhinmaEdEmail(email)) return 'Please use your PHINMAEd email.';
+    if (password.length < 6) return 'Password must be at least 6 characters.';
+    if (password !== confirmPassword) return 'Passwords do not match.';
+    return null;
+}
+
+function apiErrorMessage(err: any, fallback: string): string {
+    if (err?.status === 0) return 'Cannot reach the server. Make sure PocketBase is running.';
+    if (err?.status === 429) return 'Too many attempts. Try again later.';
+    return err?.response?.error || err?.response?.message || fallback;
+}
+
+// Step 1: ipadala ang OTP sa email
+export async function requestSignupOtp(
     fullName: string,
     email: string,
     password: string,
     confirmPassword: string
 ): Promise<AuthResult> {
-    if (!fullName || !email || !password || !confirmPassword) {
-        return { success: false, message: 'Please fill in all fields.' };
+    const problem = validateSignupFields(fullName, email, password, confirmPassword);
+    if (problem) return { success: false, message: problem };
+
+    try {
+        await pb.send('/signup-request-otp', {
+            method: 'POST',
+            body: { email, fullName }
+        });
+        return { success: true, message: 'OTP sent. Check your PHINMAEd email.' };
+    } catch (err: any) {
+        console.error('SIGNUP OTP REQUEST ERROR:', err?.status, err?.response ?? err);
+        return {
+            success: false,
+            message: apiErrorMessage(err, 'Could not send OTP. Please try again.')
+        };
     }
-    if (!isValidPhinmaEdEmail(email)) {
-        return { success: false, message: 'Please use your PHINMAEd email.' };
-    }
-    if (password.length < 6) {
-        return { success: false, message: 'Password must be at least 6 characters.' };
-    }
-    if (password !== confirmPassword) {
-        return { success: false, message: 'Passwords do not match.' };
+}
+
+// Step 2: i-verify ang OTP, backend ang gagawa ng account
+export async function verifySignupOtp(
+    fullName: string,
+    email: string,
+    password: string,
+    otp: string
+): Promise<AuthResult> {
+    if (!otp || otp.trim().length !== 6) {
+        return { success: false, message: 'Enter the 6-digit code.' };
     }
 
     try {
-        const rec = await pb.collection('users').create({
-            email,
-            password,
-            passwordConfirm: confirmPassword,
-            fullname: fullName
+        await pb.send('/signup-verify-otp', {
+            method: 'POST',
+            body: { email, fullName, password, otp: otp.trim() }
         });
 
         return {
             success: true,
             message: 'Account created successfully!',
             user: {
-                uid: rec.id,
+                uid: '',
                 fullName,
                 email,
                 role: 'user',
@@ -91,27 +125,22 @@ export async function signUp(
             }
         };
     } catch (err: any) {
-        console.error('SIGNUP ERROR:', err?.status, err?.response ?? err);
-
-        const data = err?.response?.data ?? {};
-        let msg = 'Sign up failed. Please try again.';
-
-        if (err?.status === 0) {
-            msg = 'Cannot reach the server. Make sure PocketBase is running.';
-        } else if (data.email?.code === 'validation_not_unique') {
-            msg = 'Email already registered.';
-        } else if (data.email) {
-            msg = data.email.message || 'Invalid email address.';
-        } else if (data.password) {
-            msg = data.password.message || 'Password is too weak.';
-        } else if (data.fullname) {
-            msg = data.fullname.message || 'Invalid name.';
-        } else if (err?.status === 400 || err?.status === 403) {
-            msg = 'Sign up was rejected. Use your PHINMAEd email (name@phinmaed.com).';
-        }
-
-        return { success: false, message: msg };
+        console.error('SIGNUP VERIFY ERROR:', err?.status, err?.response ?? err);
+        return {
+            success: false,
+            message: apiErrorMessage(err, 'Could not create account. Please try again.')
+        };
     }
+}
+
+// Luma na function, hindi na ginagamit. Naiwan lang para hindi mag-error ang import sa main.ts.
+export async function signUp(
+    _fullName: string,
+    _email: string,
+    _password: string,
+    _confirmPassword: string
+): Promise<AuthResult> {
+    return { success: false, message: 'Please use the email verification sign up.' };
 }
 
 export async function signIn(email: string, password: string): Promise<AuthResult> {
