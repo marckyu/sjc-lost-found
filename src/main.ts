@@ -414,6 +414,10 @@ function createForgotPasswordModal(): void {
                     <input id="forgotNewPassword" type="password" placeholder="At least 6 characters" required>
                 </div>
                 <button class="submit-button" type="submit" id="resetPasswordBtn">Reset Password</button>
+                <p class="form-footer" style="border-top: none; padding-top: 0; margin-top: 10px;">
+                    Didn't get the code or wrong email? 
+                    <button type="button" class="inline-button" id="backToStep1Btn">Try again</button>
+                </p>
             </form>
 
             <p class="form-footer">
@@ -428,6 +432,12 @@ function createForgotPasswordModal(): void {
     document.querySelector('[data-back-to-signin]')?.addEventListener('click', () => {
         closeForgotPasswordModal();
         openAuthModal('signin');
+    });
+
+    document.getElementById('backToStep1Btn')?.addEventListener('click', () => {
+        document.getElementById('forgotStep1')!.hidden = false;
+        document.getElementById('forgotStep2')!.hidden = true;
+        document.getElementById('forgotSubtitle')!.textContent = 'Enter your PHINMAEd email to request a reset OTP.';
     });
 
     document.getElementById('forgotStep1')?.addEventListener('submit', handleSendOtp);
@@ -546,7 +556,9 @@ async function handleVerifyOtp(e: Event): Promise<void> {
         }, 2000);
         
     } catch (err: any) {
-        showForgotMessage(err?.response?.error || 'Invalid OTP. Try again.', 'error');
+        console.error("OTP Error:", err);
+        const errorMsg = err?.response?.message || err?.response?.data?.message || err?.message || 'Invalid or expired OTP. Try again.';
+        showForgotMessage(errorMsg, 'error');
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Reset Password';
@@ -896,17 +908,6 @@ createProfileModal();
 createForgotPasswordModal();
 bindForgotPassword();
 initEmailValidation();
-
-document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    const forgotBtn = target.closest('[data-forgot-password]');
-    if (forgotBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        closeModal('authModal');
-        setTimeout(() => openForgotPasswordModal(), 200);
-    }
-});
 
 function updateBottomNav(): void {
     const path = window.location.pathname;
