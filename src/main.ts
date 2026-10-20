@@ -630,6 +630,12 @@ function initEmailValidation(): void {
         const wrapper = input.closest('.form-group');
         if (!wrapper) return;
 
+        // FIX: Tanggalin ang static na guide text sa HTML para hindi madoble
+        const guideEl = wrapper.querySelector('.guide');
+        if (guideEl) {
+            guideEl.remove();
+        }
+
         let feedbackEl = wrapper.querySelector<HTMLElement>('.email-feedback');
         if (!feedbackEl) {
             feedbackEl = document.createElement('small');
