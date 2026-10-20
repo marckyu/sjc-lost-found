@@ -1,6 +1,7 @@
 import './pb';
 import { pb } from './pb';
-import { onAuthChange, getUserProfile, signOut, signIn, signUp, isValidPhinmaEdEmail } from './auth';
+import { onAuthChange, getUserProfile, signOut, signIn, isValidPhinmaEdEmail } from './auth';
+import './Signupotp'; // Idinagdag para gumana ang bagong OTP flow
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
 import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
 import { initAvatarUploader } from './profile';
@@ -706,7 +707,6 @@ function initEmailValidation(): void {
 
 function bindForms(): void {
     const signinForm = document.getElementById('signinForm') as HTMLFormElement | null;
-    const signupForm = document.getElementById('signupForm') as HTMLFormElement | null;
 
     signinForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -734,46 +734,6 @@ function bindForms(): void {
                     updateNavAuth(result.user!);
                 }
             }, 900);
-        } else {
-            showAuthMessage(result.message, 'error');
-        }
-    });
-
-    signupForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        hideAuthMessage();
-
-        const fullName = (document.getElementById('signupName') as HTMLInputElement).value.trim();
-        const email = (document.getElementById('signupEmail') as HTMLInputElement).value.trim();
-        const password = (document.getElementById('signupPassword') as HTMLInputElement).value;
-        const confirmPassword = (document.getElementById('signupConfirmPassword') as HTMLInputElement).value;
-
-        if (!isValidPhinmaEdEmail(email)) {
-            showAuthMessage('Please use your PHINMAEd email (name@phinmaed.com).', 'error');
-            return;
-        }
-
-        pulseSync(900);
-
-        const result = await signUp(fullName, email, password, confirmPassword);
-
-        if (result.success) {
-            showAuthMessage(result.message, 'success');
-            signupForm.reset();
-            document.querySelectorAll('.email-feedback').forEach(el => {
-                el.textContent = 'Use your official PHINMAEd email';
-                el.className = 'email-feedback';
-            });
-            document.querySelectorAll('.email-valid, .email-invalid').forEach(el => {
-                el.classList.remove('email-valid', 'email-invalid');
-            });
-            setTimeout(() => {
-                showTab('signin');
-                const signinEmail = document.getElementById('signinEmail') as HTMLInputElement;
-                if (signinEmail) signinEmail.value = email;
-                const signinPassword = document.getElementById('signinPassword') as HTMLInputElement;
-                signinPassword?.focus();
-            }, 1200);
         } else {
             showAuthMessage(result.message, 'error');
         }
