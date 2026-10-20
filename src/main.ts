@@ -580,6 +580,7 @@ function bindAuthButtons(): void {
 
 function openAuthModal(tab: 'signin' | 'signup'): void {
     openModal('authModal');
+    hideAuthMessage(); // FIX: Clear messages when modal opens
     showTab(tab);
     setTimeout(() => bindForgotPassword(), 100);
 }
@@ -604,6 +605,8 @@ function showTab(tab: 'signin' | 'signup'): void {
             ? 'Sign in to manage your lost and found reports.'
             : 'Sign up with your PHINMAEd email to get started.';
     }
+
+    hideAuthMessage(); // FIX: Clear messages when switching tabs
 }
 
 function showAuthMessage(msg: string, type: 'success' | 'error'): void {
