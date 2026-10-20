@@ -438,6 +438,7 @@ function createForgotPasswordModal(): void {
         document.getElementById('forgotStep1')!.hidden = false;
         document.getElementById('forgotStep2')!.hidden = true;
         document.getElementById('forgotSubtitle')!.textContent = 'Enter your PHINMAEd email to request a reset OTP.';
+        clearForgotMessage();
     });
 
     document.getElementById('forgotStep1')?.addEventListener('submit', handleSendOtp);
@@ -451,6 +452,30 @@ function showForgotMessage(msg: string, type: 'success' | 'error'): void {
     el.className = 'auth-message ' + type;
 }
 
+function clearForgotMessage(): void {
+    const el = document.getElementById('forgotMessage');
+    if (!el) return;
+    el.textContent = '';
+    el.className = 'auth-message';
+}
+
+function resetForgotModal(): void {
+    clearForgotMessage();
+
+    const step1 = document.getElementById('forgotStep1');
+    const step2 = document.getElementById('forgotStep2');
+    if (step1) step1.hidden = false;
+    if (step2) step2.hidden = true;
+
+    const subtitle = document.getElementById('forgotSubtitle');
+    if (subtitle) subtitle.textContent = 'Enter your PHINMAEd email to request a reset OTP.';
+
+    const otp = document.getElementById('forgotOtp') as HTMLInputElement | null;
+    const pass = document.getElementById('forgotNewPassword') as HTMLInputElement | null;
+    if (otp) otp.value = '';
+    if (pass) pass.value = '';
+}
+
 function openForgotPasswordModal(): void {
     const modal = document.getElementById('forgotPasswordModal');
     if (!modal) return;
@@ -462,15 +487,7 @@ function openForgotPasswordModal(): void {
         emailInput.value = signinEmail.value;
     }
 
-    document.getElementById('forgotStep1')!.hidden = false;
-    document.getElementById('forgotStep2')!.hidden = true;
-    document.getElementById('forgotSubtitle')!.textContent = 'Enter your PHINMAEd email to request a reset OTP.';
-    
-    const msgEl = document.getElementById('forgotMessage');
-    if (msgEl) {
-        msgEl.textContent = '';
-        msgEl.className = 'auth-message';
-    }
+    resetForgotModal();
 
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -482,6 +499,7 @@ function closeForgotPasswordModal(): void {
     if (!modal) return;
     modal.hidden = true;
     document.body.style.overflow = '';
+    resetForgotModal();
 }
 
 async function handleSendOtp(e: Event): Promise<void> {
@@ -504,7 +522,7 @@ async function handleSendOtp(e: Event): Promise<void> {
             body: { email }
         });
 
-        showForgotMessage('OTP sent to your email!', 'success');
+        showForgotMessage('OTP sent to your PHINMAEd email!', 'success');
         
         document.getElementById('forgotStep1')!.hidden = true;
         document.getElementById('forgotStep2')!.hidden = false;
