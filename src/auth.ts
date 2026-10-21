@@ -51,77 +51,76 @@ function refreshSession(): Promise<void> {
     return refreshOnce;
 }
 
-function validateSignupFields(
-    fullName: string,
-    email: string,
-    password: string,
-    confirmPassword: string
-): string | null {
-    if (!fullName || !email || !password || !confirmPassword) return 'Please fill in all fields.';
-    if (!isValidPhinmaEdEmail(email)) return 'Please use your PHINMAEd email.';
-    if (password.length < 6) return 'Password must be at least 6 characters.';
-    if (password !== confirmPassword) return 'Passwords do not match.';
-    return null;
-}
-
 function apiErrorMessage(err: any, fallback: string): string {
-    if (err?.status === 0) return 'Cannot reach the server. Make sure PocketBase is running.';
-    if (err?.status === 429) return 'Too many attempts. Try again later.';
-    return err?.response?.error || err?.response?.message || err?.message || fallback;
+    if (err?.status === 0) {
+        return 'Cannot reach the server. Make sure PocketBase is running.';
+    }
+    return err?.response?.message || err?.response?.error || fallback;
 }
 
-export async function requestSignupOtp(
+/**
+ * STEP 1 ng sign up: i-validate ang form at magpadala ng OTP sa PHINMAEd email.
+ * Hindi pa ito gumagawa ng account.
+ */
+export async function requestSignUpOtp(
     fullName: string,
     email: string,
     password: string,
     confirmPassword: string
 ): Promise<AuthResult> {
-    const problem = validateSignupFields(fullName, email, password, confirmPassword);
-    if (problem) return { success: false, message: problem };
+    if (!fullName || !email || !password || !confirmPassword) {
+        return { success: false, message: 'Please fill in all fields.' };
+    }
+    if (!isValidPhinmaEdEmail(email)) {
+        return { success: false, message: 'Please use your PHINMAEd email.' };
+    }
+    if (password.length < 6) {
+        return { success: false, message: 'Password must be at least 6 characters.' };
+    }
+    if (password !== confirmPassword) {
+        return { success: false, message: 'Passwords do not match.' };
+    }
 
     try {
         await pb.send('/signup-request-otp', {
             method: 'POST',
-            // SIGURADUHIN NA NAKA-STRINGIFY AT MAY HEADER
-            body: JSON.stringify({ email, fullName }),
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            body: { fullName, email: email.trim().toLowerCase() }
         });
-        return { success: true, message: 'OTP sent. Check your PHINMAEd email.' };
+
+        return { success: true, message: 'Verification code sent to your PHINMAEd email!' };
     } catch (err: any) {
         console.error('SIGNUP OTP REQUEST ERROR:', err?.status, err?.response ?? err);
         return {
             success: false,
-            message: apiErrorMessage(err, 'Could not send OTP. Please try again.')
+            message: apiErrorMessage(err, 'Could not send the code. Please try again.')
         };
     }
 }
 
-export async function verifySignupOtp(
+/**
+ * STEP 2 ng sign up: i-verify ang OTP. Kapag tama, ang backend na ang gagawa ng account.
+ */
+export async function completeSignUp(
     fullName: string,
     email: string,
     password: string,
     otp: string
 ): Promise<AuthResult> {
-    if (!otp || otp.trim().length !== 6) {
+    if (!/^\d{6}$/.test(otp)) {
         return { success: false, message: 'Enter the 6-digit code.' };
     }
 
     try {
-        await pb.send('/signup-verify-otp', {
+        const res: any = await pb.send('/signup-verify-otp', {
             method: 'POST',
-            body: JSON.stringify({ email, fullName, password, otp: otp.trim() }),
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            body: { fullName, email: email.trim().toLowerCase(), password, otp }
         });
 
         return {
             success: true,
             message: 'Account created successfully!',
             user: {
-                uid: '',
+                uid: res?.id ?? '',
                 fullName,
                 email,
                 role: 'user',
@@ -133,18 +132,9 @@ export async function verifySignupOtp(
         console.error('SIGNUP VERIFY ERROR:', err?.status, err?.response ?? err);
         return {
             success: false,
-            message: apiErrorMessage(err, 'Could not create account. Please try again.')
+            message: apiErrorMessage(err, 'Invalid or expired code. Please try again.')
         };
     }
-}
-
-export async function signUp(
-    _fullName: string,
-    _email: string,
-    _password: string,
-    _confirmPassword: string
-): Promise<AuthResult> {
-    return { success: false, message: 'Please use the email verification sign up.' };
 }
 
 export async function signIn(email: string, password: string): Promise<AuthResult> {

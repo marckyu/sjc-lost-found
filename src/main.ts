@@ -1,7 +1,6 @@
 import './pb';
 import { pb } from './pb';
-import { onAuthChange, getUserProfile, signOut, signIn, isValidPhinmaEdEmail } from './auth';
-import './Signupotp'; // Idinagdag para gumana ang bagong OTP flow
+import { onAuthChange, getUserProfile, signOut, signIn, requestSignUpOtp, completeSignUp, isValidPhinmaEdEmail } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
 import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
 import { initAvatarUploader } from './profile';
@@ -31,6 +30,11 @@ let msgUnreadUnsub: (() => void) | null = null;
 let adminMsgUnreadUnsub: (() => void) | null = null;
 let userMsgUnread = 0;
 let adminMsgUnread = 0;
+
+// Pansamantalang hawak ng sign up habang hinihintay ang OTP (hindi pa ito account)
+let pendingSignup: { fullName: string; email: string; password: string } | null = null;
+let resendTimer: number | undefined;
+const RESEND_SECONDS = 60; // dapat kapareho ng cooldown sa signup_otp.pb.js
 
 function isProtectedPage(): boolean {
     return /\/(admin|report|messages)(\.html)?$/.test(window.location.pathname);
@@ -576,7 +580,7 @@ async function handleVerifyOtp(e: Event): Promise<void> {
         
     } catch (err: any) {
         console.error("OTP Error:", err);
-        const errorMsg = err?.response?.message || err?.response?.data?.message || err?.message || 'Invalid or expired OTP. Try again.';
+        const errorMsg = err?.response?.error || err?.response?.message || err?.response?.data?.message || err?.message || 'Invalid or expired OTP. Try again.';
         showForgotMessage(errorMsg, 'error');
     } finally {
         submitBtn.disabled = false;
@@ -627,10 +631,17 @@ function showTab(tab: 'signin' | 'signup'): void {
     const isSignin = tab === 'signin';
     const signinForm = document.getElementById('signinForm');
     const signupForm = document.getElementById('signupForm');
+    const signupOtpForm = document.getElementById('signupOtpForm');
     const signinTab = document.getElementById('signinTab');
     const signupTab = document.getElementById('signupTab');
     const modalTitle = document.getElementById('modalTitle');
     const modalSubtitle = document.getElementById('modalSubtitle');
+
+    // Pag nagpalit ng tab, balik sa unang step ng sign up
+    pendingSignup = null;
+    window.clearInterval(resendTimer);
+    setOtpError('');
+    if (signupOtpForm) signupOtpForm.hidden = true;
 
     if (signinForm) signinForm.hidden = !isSignin;
     if (signupForm) signupForm.hidden = isSignin;
@@ -705,8 +716,135 @@ function initEmailValidation(): void {
     });
 }
 
+/**
+ * Ginagawa sa JavaScript ang OTP step ng sign up para gumana ito
+ * sa lahat ng page na may authModal, kahit hindi mo galawin ang HTML.
+ */
+function ensureSignupOtpForm(): HTMLFormElement | null {
+    const existing = document.getElementById('signupOtpForm') as HTMLFormElement | null;
+    if (existing) return existing;
+
+    const signupForm = document.getElementById('signupForm');
+    if (!signupForm) return null;
+
+    const form = document.createElement('form');
+    form.id = 'signupOtpForm';
+    form.className = 'auth-form';
+    form.hidden = true;
+    form.noValidate = true;
+    form.innerHTML = `
+        <div class="form-group">
+            <label for="signupOtp">Verification Code</label>
+            <input id="signupOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" required>
+            <small class="guide" id="signupOtpHint">We sent a code to your PHINMAEd email. It expires in 10 minutes.</small>
+        </div>
+        <p id="signupOtpError" role="alert" style="color:#dc2626;font-size:13px;margin:0 0 10px;" hidden></p>
+        <button class="submit-button" type="submit" id="signupOtpSubmit">Verify &amp; Create Account</button>
+        <p class="form-footer">
+            Didn't get it?
+            <button type="button" class="inline-button" id="signupResendOtp">Resend code</button>
+        </p>
+        <p class="form-footer" style="border-top: 0; padding-top: 0; margin-top: 0;">
+            <button type="button" class="inline-button" id="signupOtpBack">&larr; Back</button>
+        </p>
+    `;
+    signupForm.insertAdjacentElement('afterend', form);
+    return form;
+}
+
+function startResendCooldown(): void {
+    const btn = document.getElementById('signupResendOtp') as HTMLButtonElement | null;
+    if (!btn) return;
+    window.clearInterval(resendTimer);
+    let left = RESEND_SECONDS;
+    btn.disabled = true;
+    btn.textContent = `Resend code (${left}s)`;
+    resendTimer = window.setInterval(() => {
+        left -= 1;
+        if (left <= 0) {
+            window.clearInterval(resendTimer);
+            btn.disabled = false;
+            btn.textContent = 'Resend code';
+        } else {
+            btn.textContent = `Resend code (${left}s)`;
+        }
+    }, 1000);
+}
+
+function showSignupOtpStep(email: string): void {
+    const signupForm = document.getElementById('signupForm');
+    const otpForm = document.getElementById('signupOtpForm');
+    const hint = document.getElementById('signupOtpHint');
+    const otpInput = document.getElementById('signupOtp') as HTMLInputElement | null;
+
+    if (signupForm) signupForm.hidden = true;
+    if (otpForm) otpForm.hidden = false;
+    if (hint) hint.textContent = `We sent a 6-digit code to ${email}. It expires in 10 minutes.`;
+    setOtpError('');
+    if (otpInput) {
+        otpInput.value = '';
+        setTimeout(() => otpInput.focus(), 100);
+    }
+    startResendCooldown();
+}
+
+function backToSignupForm(): void {
+    const signupForm = document.getElementById('signupForm');
+    const otpForm = document.getElementById('signupOtpForm');
+    pendingSignup = null;
+    window.clearInterval(resendTimer);
+    setOtpError('');
+    if (otpForm) otpForm.hidden = true;
+    if (signupForm) signupForm.hidden = false;
+    hideAuthMessage();
+}
+
+function setOtpError(text: string): void {
+    const box = document.getElementById('signupOtpError') as HTMLElement | null;
+    if (!box) return;
+    box.textContent = text;
+    box.hidden = !text;
+}
+
+function clearSignupFields(): void {
+    (document.getElementById('signupForm') as HTMLFormElement | null)?.reset();
+    const otp = document.getElementById('signupOtp') as HTMLInputElement | null;
+    if (otp) otp.value = '';
+    document.querySelectorAll('.email-feedback').forEach(el => {
+        el.textContent = 'Use your official PHINMAEd email';
+        el.className = 'email-feedback';
+    });
+    document.querySelectorAll('.email-valid, .email-invalid').forEach(el => {
+        el.classList.remove('email-valid', 'email-invalid');
+    });
+}
+
+// Kapag sumara ang modal (X, Esc, click sa labas): burahin ang pansamantalang datos, kasama ang password
+function watchAuthModalClose(): void {
+    const modal = document.getElementById('authModal');
+    if (!modal) return;
+    new MutationObserver(() => {
+        if (!modal.hidden) return;
+        pendingSignup = null;
+        window.clearInterval(resendTimer);
+        setOtpError('');
+        const otp = document.getElementById('signupOtp') as HTMLInputElement | null;
+        if (otp) otp.value = '';
+    }).observe(modal, { attributes: true, attributeFilter: ['hidden'] });
+}
+
 function bindForms(): void {
     const signinForm = document.getElementById('signinForm') as HTMLFormElement | null;
+    const signupForm = document.getElementById('signupForm') as HTMLFormElement | null;
+    const signupOtpForm = ensureSignupOtpForm();
+
+    watchAuthModalClose();
+
+    // OTP: numbers lang, hanggang 6 digits
+    document.getElementById('signupOtp')?.addEventListener('input', (e) => {
+        const input = e.target as HTMLInputElement;
+        input.value = input.value.replace(/\D/g, '').slice(0, 6);
+    });
 
     signinForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -738,6 +876,127 @@ function bindForms(): void {
             showAuthMessage(result.message, 'error');
         }
     });
+
+    // STEP 1: ipadala ang OTP (hindi pa gagawa ng account)
+    signupForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAuthMessage();
+
+        const fullName = (document.getElementById('signupName') as HTMLInputElement).value.trim();
+        const email = (document.getElementById('signupEmail') as HTMLInputElement).value.trim().toLowerCase();
+        const password = (document.getElementById('signupPassword') as HTMLInputElement).value;
+        const confirmPassword = (document.getElementById('signupConfirmPassword') as HTMLInputElement).value;
+
+        if (!isValidPhinmaEdEmail(email)) {
+            showAuthMessage('Please use your PHINMAEd email (name@phinmaed.com).', 'error');
+            return;
+        }
+
+        const submitBtn = signupForm.querySelector<HTMLButtonElement>('button[type="submit"]');
+        const originalLabel = submitBtn?.textContent ?? 'Create Account';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending code...';
+        }
+
+        pulseSync(900);
+
+        const result = await requestSignUpOtp(fullName, email, password, confirmPassword);
+
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalLabel;
+        }
+
+        if (result.success) {
+            pendingSignup = { fullName, email, password };
+            showSignupOtpStep(email);
+            showAuthMessage(result.message, 'success');
+        } else {
+            showAuthMessage(result.message, 'error');
+        }
+    });
+
+    // STEP 2: i-verify ang OTP, tapos saka pa lang gagawa ng account
+    signupOtpForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAuthMessage();
+        setOtpError('');
+
+        if (!pendingSignup) {
+            setOtpError('Session expired. Please start sign up again.');
+            return;
+        }
+
+        const otp = (document.getElementById('signupOtp') as HTMLInputElement).value.trim();
+        if (!/^\d{6}$/.test(otp)) {
+            setOtpError('Enter the 6-digit code.');
+            return;
+        }
+
+        const otpBtn = document.getElementById('signupOtpSubmit') as HTMLButtonElement | null;
+        const restoreBtn = () => {
+            if (!otpBtn) return;
+            otpBtn.disabled = false;
+            otpBtn.innerHTML = 'Verify &amp; Create Account';
+        };
+        if (otpBtn) {
+            otpBtn.disabled = true;
+            otpBtn.textContent = 'Verifying...';
+        }
+
+        const { fullName, email, password } = pendingSignup;
+        const result = await completeSignUp(fullName, email, password, otp);
+
+        if (!result.success) {
+            restoreBtn();
+            setOtpError(result.message);
+            return;
+        }
+
+        showToast('Account created!', 'success');
+
+        // Auto sign in pagkatapos magawa ang account
+        const login = await signIn(email, password);
+        restoreBtn();
+        pendingSignup = null;
+        window.clearInterval(resendTimer);
+        clearSignupFields();
+
+        if (login.success && login.user) {
+            closeModal('authModal');
+            updateNavAuth(login.user);
+        } else {
+            // Nagawa na ang account pero hindi nag-auto login: ibalik sa Sign In tab
+            showTab('signin');
+            const signinEmail = document.getElementById('signinEmail') as HTMLInputElement | null;
+            if (signinEmail) signinEmail.value = email;
+            showToast('Account created. Please sign in.', 'info');
+        }
+    });
+
+    document.getElementById('signupResendOtp')?.addEventListener('click', async () => {
+        if (!pendingSignup) {
+            setOtpError('Session expired. Please start sign up again.');
+            return;
+        }
+        const resendBtn = document.getElementById('signupResendOtp') as HTMLButtonElement | null;
+        if (resendBtn) resendBtn.disabled = true;
+        setOtpError('');
+
+        const { fullName, email, password } = pendingSignup;
+        const result = await requestSignUpOtp(fullName, email, password, password);
+
+        if (!result.success) {
+            setOtpError(result.message);
+            if (resendBtn) resendBtn.disabled = false;
+            return;
+        }
+        showToast('A new code was sent.', 'success');
+        startResendCooldown();
+    });
+
+    document.getElementById('signupOtpBack')?.addEventListener('click', backToSignupForm);
 }
 
 function bindTabs(): void {
