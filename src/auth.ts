@@ -67,10 +67,9 @@ function validateSignupFields(
 function apiErrorMessage(err: any, fallback: string): string {
     if (err?.status === 0) return 'Cannot reach the server. Make sure PocketBase is running.';
     if (err?.status === 429) return 'Too many attempts. Try again later.';
-    return err?.response?.error || err?.response?.message || fallback;
+    return err?.response?.error || err?.response?.message || err?.message || fallback;
 }
 
-// Step 1: ipadala ang OTP sa email
 export async function requestSignupOtp(
     fullName: string,
     email: string,
@@ -83,7 +82,11 @@ export async function requestSignupOtp(
     try {
         await pb.send('/signup-request-otp', {
             method: 'POST',
-            body: { email, fullName }
+            // SIGURADUHIN NA NAKA-STRINGIFY AT MAY HEADER
+            body: JSON.stringify({ email, fullName }),
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
         return { success: true, message: 'OTP sent. Check your PHINMAEd email.' };
     } catch (err: any) {
@@ -95,7 +98,6 @@ export async function requestSignupOtp(
     }
 }
 
-// Step 2: i-verify ang OTP, backend ang gagawa ng account
 export async function verifySignupOtp(
     fullName: string,
     email: string,
@@ -109,7 +111,10 @@ export async function verifySignupOtp(
     try {
         await pb.send('/signup-verify-otp', {
             method: 'POST',
-            body: { email, fullName, password, otp: otp.trim() }
+            body: JSON.stringify({ email, fullName, password, otp: otp.trim() }),
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
 
         return {
@@ -133,7 +138,6 @@ export async function verifySignupOtp(
     }
 }
 
-// Luma na function, hindi na ginagamit. Naiwan lang para hindi mag-error ang import sa main.ts.
 export async function signUp(
     _fullName: string,
     _email: string,
