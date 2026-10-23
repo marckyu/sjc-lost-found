@@ -993,25 +993,6 @@ function closeImageModal(): void {
     document.body.style.overflow = '';
 }
 
-async function handleClearAll(): Promise<void> {
-    if (allItems.length === 0) {
-        showToast('Nothing to clear.', 'info');
-        return;
-    }
-
-    if (!confirm(`Delete ALL ${allItems.length} items? This cannot be undone.`)) return;
-
-    // Binalik ko muna yung delete functionality dito para may way ka pa rin maglinis ng buong DB kung kailangan sa testing, pero walang per-row delete.
-    try {
-        const { deleteItem } = await import('./db');
-        await Promise.all(allItems.map(item => deleteItem(item.id, item.imageUrls)));
-        showToast('All items cleared.', 'success');
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to clear items.', 'error');
-    }
-}
-
 function updateBellBadge(notifs: Notification[]): void {
     const unread = notifs.filter(n => !n.read).length;
     const badge = document.getElementById('navBellBadge');
@@ -1254,8 +1235,6 @@ function bindUI(): void {
     document.getElementById('refreshBtn')?.addEventListener('click', () => {
         showToast('List refreshed.', 'info');
     });
-
-    document.getElementById('clearBtn')?.addEventListener('click', handleClearAll);
 
     document.getElementById('testMatchBtn')?.addEventListener('click', handleRunAiMatch);
 
