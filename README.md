@@ -104,7 +104,7 @@ The system follows a three-tier architecture.
 
 **AI Image Service:** Python Flask microservice. Accepts two arrays of image URLs, returns a similarity score using perceptual hashing (pHash 50%, dHash 30%, aHash 20%) with Hamming distance.
 
-**Offline Engine:** Custom IndexedDB layer with four modules — wrappers (try online, fallback queue), queue (pending ops), sync (replay on reconnect), and indicator (visual feedback).
+**Offline Engine:** Custom IndexedDB layer with four modules — wrappers (try online, fallback queue), queue (pending ops), sync (replay on reconnect), and indicator (visual feedback).  
 
 ### Data Flow — Report Submission
 

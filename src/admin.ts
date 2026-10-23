@@ -1,7 +1,6 @@
 import { getCurrentUser, signOut } from './auth';
 import {
-    watchItems, verifyItem, deleteItem, toggleItemStatus,
-    sendNotification, markAsRecovered, watchNotifications,
+    watchItems, verifyItem, sendNotification, markAsRecovered, watchNotifications,
     watchClaims, approveClaim, rejectClaim, createConversation,
     watchAllAdminMessages, getAdminMessagesForThread,
     buildAdminThreads, markAdminThreadAsRead, getUsersByIds,
@@ -474,8 +473,8 @@ function watchAdminMessagesForThread(
 
     load();
 
-    import('./db').then(() => {
-        unsub = watchAllAdminMessages((allMsgs) => {
+    import('./db').then((mod) => {
+        unsub = mod.watchAllAdminMessages((allMsgs) => {
             const filtered = allMsgs
                 .filter(m => m.userId === uid && m.itemId === itemId)
                 .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -693,9 +692,7 @@ function renderTable(): void {
                 actionsHtml += `<button class="action-btn recover" data-action="recover" data-id="${item.id}">Recovered</button>`;
             }
             actionsHtml += `<button class="action-btn notify" data-action="notify" data-id="${item.id}">Notify</button>`;
-            actionsHtml += `<button class="action-btn toggle" data-action="toggle" data-id="${item.id}">Toggle</button>`;
         }
-        actionsHtml += `<button class="action-btn delete" data-action="delete" data-id="${item.id}">Delete</button>`;
 
         const info = userCache.get(item.userId);
         const avatar = info?.avatar;
@@ -801,23 +798,6 @@ function bindActions(): void {
                 } catch (err) {
                     console.error(err);
                     showToast('Failed to mark item as recovered.', 'error');
-                }
-            } else if (action === 'toggle') {
-                try {
-                    const next = await toggleItemStatus(id, item.status);
-                    showToast(`Status changed to "${next}".`, 'success');
-                } catch (err) {
-                    console.error(err);
-                    showToast('Failed to toggle status.', 'error');
-                }
-            } else if (action === 'delete') {
-                if (!confirm(`Delete "${item.itemName}"? This cannot be undone.`)) return;
-                try {
-                    await deleteItem(id, item.imageUrls);
-                    showToast('Item deleted.', 'success');
-                } catch (err) {
-                    console.error(err);
-                    showToast('Failed to delete item.', 'error');
                 }
             } else if (action === 'notify') {
                 openNotifyModal(item);
@@ -1021,7 +1001,9 @@ async function handleClearAll(): Promise<void> {
 
     if (!confirm(`Delete ALL ${allItems.length} items? This cannot be undone.`)) return;
 
+    // Binalik ko muna yung delete functionality dito para may way ka pa rin maglinis ng buong DB kung kailangan sa testing, pero walang per-row delete.
     try {
+        const { deleteItem } = await import('./db');
         await Promise.all(allItems.map(item => deleteItem(item.id, item.imageUrls)));
         showToast('All items cleared.', 'success');
     } catch (err) {
