@@ -4,18 +4,19 @@ import {
     watchClaims, approveClaim, rejectClaim, createConversation,
     watchAllAdminMessages, getAdminMessagesForThread,
     buildAdminThreads, markAdminThreadAsRead, getUsersByIds,
-    watchUnreadMessages
+    watchUnreadMessages, getAllMatches, confirmMatch, rejectMatch
 } from './db';
 import { sendAdminMessageOffline } from './offline/wrappers';
 import { showToast, escapeHtml, formatDate } from './ui';
 import { runMatching } from './matcher';
-import type { Item, User, Notification, Claim, AdminMessage, AdminThread } from './types';
+import type { Item, User, Notification, Claim, AdminMessage, AdminThread, Match } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
 let allClaims: Claim[] = [];
 let allAdminMessages: AdminMessage[] = [];
 let allAdminThreads: AdminThread[] = [];
+let allMatches: Match[] = [];
 let activeThread: AdminThread | null = null;
 let notifUnsubscribe: (() => void) | null = null;
 let adminMsgsUnsubscribe: (() => void) | null = null;
@@ -37,6 +38,7 @@ const inquiryHeaderName = document.getElementById('inquiryHeaderName');
 const inquiryHeaderItem = document.getElementById('inquiryHeaderItem');
 const inquiryReplyForm = document.getElementById('inquiryReplyForm') as HTMLFormElement | null;
 const inquiryReplyInput = document.getElementById('inquiryReplyInput') as HTMLInputElement | null;
+const aiMatchesList = document.getElementById('aiMatchesList');
 
 function renderStats(): void {
     const total = document.getElementById('totalItems');
@@ -50,6 +52,94 @@ function renderStats(): void {
     if (found) found.textContent = String(allItems.filter(i => i.status === 'found' && !i.recovered).length);
     if (verified) verified.textContent = String(allItems.filter(i => i.verified && !i.recovered).length);
     if (recovered) recovered.textContent = String(allItems.filter(i => i.recovered).length);
+}
+
+async function loadMatchesData(): Promise<void> {
+    try {
+        allMatches = await getAllMatches();
+        renderAiMatches();
+    } catch (err) {
+        console.error('Failed to load AI matches:', err);
+    }
+}
+
+function renderAiMatches(): void {
+    if (!aiMatchesList) return;
+
+    const pendingMatches = allMatches.filter(m => m.status === 'pending' || m.status === 'confirmed');
+    const countEl = document.getElementById('aiMatchesCount');
+    if (countEl) countEl.textContent = String(pendingMatches.length);
+
+    if (pendingMatches.length === 0) {
+        aiMatchesList.innerHTML = '<div class="empty-state"><p>No AI matches found. Run AI Match to scan items.</p></div>';
+        return;
+    }
+
+    aiMatchesList.innerHTML = pendingMatches.map(match => {
+        const lostItem = allItems.find(i => i.id === match.lostItemId);
+        const foundItem = allItems.find(i => i.id === match.foundItemId);
+        
+        if (!lostItem || !foundItem) return '';
+
+        const isConfirmed = match.status === 'confirmed';
+        const statusBadge = isConfirmed 
+            ? '<span class="status-badge status-verified">Confirmed</span>' 
+            : '<span class="status-badge status-pending">Needs Review</span>';
+
+        const actionsHtml = isConfirmed
+            ? `<span style="font-size: 12px; font-weight: 700; color: #166534;">Match Confirmed!</span>`
+            : `
+                <button class="admin-button" data-match-action="confirm" data-id="${match.id}">Confirm</button>
+                <button class="admin-button danger" data-match-action="reject" data-id="${match.id}">Dismiss</button>
+            `;
+
+        return `
+            <article class="claim-card" style="border-left-color: #15803d;">
+                <div class="claim-card-body">
+                    <div class="claim-card-head">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <strong class="claim-item-name">${escapeHtml(lostItem.itemName)} ↔ ${escapeHtml(foundItem.itemName)}</strong>
+                            <span class="claims-count" style="background: #dcfce7; color: #166534; font-size: 11px;">${match.confidenceScore}% Match</span>
+                            ${statusBadge}
+                        </div>
+                        <small class="claim-date">${formatDate(match.createdAt)}</small>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; margin-bottom: 12px;">
+                        <p><strong>Reason:</strong> ${escapeHtml(match.matchReason)}</p>
+                        <p><strong>Lost Location:</strong> ${escapeHtml(lostItem.location)} | <strong>Found Location:</strong> ${escapeHtml(foundItem.location)}</p>
+                    </div>
+                    <div class="claim-actions" style="justify-content: flex-start;">
+                        ${actionsHtml}
+                    </div>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    aiMatchesList.querySelectorAll<HTMLButtonElement>('[data-match-action]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const action = btn.dataset.matchAction;
+            if (!id || !action) return;
+
+            btn.disabled = true;
+
+            try {
+                if (action === 'confirm') {
+                    await confirmMatch(id);
+                    showToast('Match confirmed!', 'success');
+                } else if (action === 'reject') {
+                    await rejectMatch(id);
+                    showToast('Match dismissed.', 'info');
+                }
+                await loadMatchesData();
+            } catch (err) {
+                console.error(err);
+                showToast('Action failed.', 'error');
+                btn.disabled = false;
+            }
+        });
+    });
 }
 
 function renderClaims(): void {
@@ -545,6 +635,7 @@ function bindActions(): void {
                         const matches = await runMatching(item);
                         if (matches.length > 0) {
                             showToast(`AI found ${matches.length} match(es) for "${item.itemName}".`, 'success');
+                            await loadMatchesData();
                         }
                     } catch (matchErr) {
                         console.error('Matching failed:', matchErr);
@@ -613,36 +704,27 @@ async function handleRunAiMatch(): Promise<void> {
     const btn = document.getElementById('testMatchBtn') as HTMLButtonElement | null;
     if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Running...';
+        btn.innerHTML = '<span class="spinner"></span> Scanning...';
     }
 
     showToast('Running AI matching on all items...', 'info');
 
     try {
         const matches = await runMatching();
+        await loadMatchesData();
 
         if (matches.length > 0) {
             showToast(`AI found ${matches.length} match(es) in existing items!`, 'success');
-
-            const summary = matches
-                .map(
-                    m =>
-                        `• "${m.lostItem.itemName}" ↔ "${m.foundItem.itemName}" (${m.score}%)`
-                )
-                .join('\n');
-
-            console.log('[AI Match Results]\n' + summary);
         } else {
-            showToast('No matches found in existing items.', 'info');
+            showToast('No new matches found.', 'info');
         }
     } catch (err: any) {
         console.error('[admin] AI matching failed:', err);
-        console.error('[admin] error message:', err?.message);
         showToast(`AI matching failed: ${err?.message || 'Check console'}`, 'error');
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = 'Run AI Match';
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg> Run AI Match';
         }
     }
 }
@@ -1176,6 +1258,7 @@ async function initializeAdmin(): Promise<void> {
             renderStats();
             renderTable();
             renderClaims();
+            await loadMatchesData();
         });
 
         watchClaims(async claims => {
