@@ -1,5 +1,6 @@
 import { getAllItems, saveMatch, sendNotification } from './db';
 import { findMatches, MATCH_THRESHOLD, type MatchResult } from './matching';
+import { pb } from './pb';
 import type { Item } from './types';
 
 const PYTHON_SERVICE_URL =
@@ -26,9 +27,30 @@ interface ImageCompareResponse {
     confidence: number;
 }
 
+// TAMANG PARAAN PARA KUHAIN ANG ABSOLUTE URL
+function getAbsoluteUrls(item: Item): string[] {
+    const urls = item.fullImageUrls || item.imageUrls || [];
+    const pbBaseUrl = pb.baseUrl;
+    
+    return urls
+        .map(url => {
+            if (!url) return '';
+            // Kung relative path (e.g. "/api/files/..."), idugtong sa base URL
+            if (url.startsWith('/')) {
+                return `${pbBaseUrl}${url}`;
+            }
+            // Kung galing sa ibang host pero walang protocol
+            if (!url.startsWith('http')) {
+                return `https://${url}`;
+            }
+            return url;
+        })
+        .filter(url => url !== '');
+}
+
 async function compareItemImages(item1: Item, item2: Item): Promise<number> {
-    const urls1 = item1.fullImageUrls || item1.imageUrls || [];
-    const urls2 = item2.fullImageUrls || item2.imageUrls || [];
+    const urls1 = getAbsoluteUrls(item1);
+    const urls2 = getAbsoluteUrls(item2);
 
     if (urls1.length === 0 || urls2.length === 0) {
         return 0;
