@@ -1326,3 +1326,159 @@ html.is-admin .nav-links a[href="index.html"] { display: none !important; }
         gap: 8px;
     }
 }
+
+@media (max-width: 700px) {
+    .dashboard-header {
+        padding: 20px;
+        text-align: center;
+    }
+    .dashboard-header h1 {
+        font-size: 24px;
+    }
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    .stat-card {
+        padding: 15px 10px;
+    }
+    .stat-card strong {
+        font-size: 28px;
+    }
+    .stat-card span {
+        font-size: 12px;
+    }
+
+    .table-toolbar {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .search-box, .filter-select {
+        width: 100%;
+        min-width: 100%;
+        font-size: 16px;
+    }
+
+    .admin-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+    .admin-button {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+        justify-content: center;
+    }
+
+    .table-wrapper {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .items-table, 
+    .items-table tbody, 
+    .items-table tr, 
+    .items-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .items-table thead {
+        display: none;
+    }
+
+    .items-table tr {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(134, 239, 172, 0.5);
+        border-radius: 12px;
+        margin-bottom: 16px;
+        padding: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        position: relative;
+    }
+
+    .items-table td {
+        border: none;
+        padding: 6px 0;
+        text-align: left;
+        font-size: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px dashed #e2e8f0;
+    }
+
+    .items-table td:last-child {
+        border-bottom: none;
+        margin-top: 10px;
+    }
+
+    .items-table td::before {
+        content: attr(data-label);
+        font-weight: 800;
+        color: var(--green-800);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+        margin-right: 10px;
+    }
+
+    .items-table td[data-label="Status"] {
+        justify-content: flex-start;
+    }
+    .status-badge {
+        margin-left: auto;
+    }
+
+    .user-cell {
+        justify-content: flex-end;
+        text-align: right;
+    }
+    .table-avatar {
+        width: 24px;
+        height: 24px;
+        font-size: 10px;
+    }
+
+    .image-thumb {
+        width: 40px;
+        height: 40px;
+        margin-left: auto;
+    }
+
+    .items-table td[data-label="Actions"] {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-start;
+        padding-top: 15px;
+    }
+
+    .action-btn {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        font-size: 12px;
+        border-radius: 8px;
+    }
+
+    .claim-card {
+        flex-direction: column;
+        padding: 15px;
+    }
+    .claim-thumb {
+        width: 100%;
+        height: 150px;
+        object-fit: contain;
+        background: #f8fdfa;
+    }
+    .claim-actions {
+        justify-content: stretch;
+    }
+    .claim-actions .admin-button {
+        flex: 1;
+    }
+}
