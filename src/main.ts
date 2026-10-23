@@ -2,7 +2,7 @@ import './pb';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile, signOut, signIn, requestSignUpOtp, completeSignUp, isValidPhinmaEdEmail } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
-import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
+import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages, findUserByEmail, createPasswordReset } from './db';
 import { initAvatarUploader } from './profile';
 import { initSync } from './offline/sync';
 import { initOfflineIndicator, pulseSync } from './offline/indicator';
@@ -31,10 +31,9 @@ let adminMsgUnreadUnsub: (() => void) | null = null;
 let userMsgUnread = 0;
 let adminMsgUnread = 0;
 
-// Pansamantalang hawak ng sign up habang hinihintay ang OTP (hindi pa ito account)
 let pendingSignup: { fullName: string; email: string; password: string } | null = null;
 let resendTimer: number | undefined;
-const RESEND_SECONDS = 60; // dapat kapareho ng cooldown sa signup_otp.pb.js
+const RESEND_SECONDS = 60;
 
 function isProtectedPage(): boolean {
     return /\/(admin|report|messages)(\.html)?$/.test(window.location.pathname);
@@ -407,6 +406,10 @@ function createForgotPasswordModal(): void {
                     <input id="forgotEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                 </div>
                 <button class="submit-button" type="submit" id="sendOtpBtn">Send OTP</button>
+                <p class="form-footer" style="border-top: none; padding-top: 0; margin-top: 10px;">
+                    Having trouble with OTP? 
+                    <button type="button" class="inline-button" id="requestManualResetBtn">Request Admin Help</button>
+                </p>
             </form>
 
             <form id="forgotStep2" hidden novalidate>
@@ -448,6 +451,41 @@ function createForgotPasswordModal(): void {
 
     document.getElementById('forgotStep1')?.addEventListener('submit', handleSendOtp);
     document.getElementById('forgotStep2')?.addEventListener('submit', handleVerifyOtp);
+
+    document.getElementById('requestManualResetBtn')?.addEventListener('click', async () => {
+        const email = (document.getElementById('forgotEmail') as HTMLInputElement).value.trim();
+        if (!isValidPhinmaEdEmail(email)) {
+            showForgotMessage('Please enter a valid PHINMAEd email first.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('requestManualResetBtn') as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+
+        try {
+            const user = await findUserByEmail(email);
+            if (!user) {
+                showForgotMessage('User not found.', 'error');
+                return;
+            }
+
+            await createPasswordReset(user.id, user.fullname, user.email);
+            showForgotMessage('Request sent to admin. They will contact you via chat.', 'success');
+            
+            setTimeout(() => {
+                closeForgotPasswordModal();
+                showToast('Admin notified.', 'success');
+            }, 3000);
+
+        } catch (err) {
+            console.error(err);
+            showForgotMessage('Failed to send request.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Request Admin Help';
+        }
+    });
 }
 
 function showForgotMessage(msg: string, type: 'success' | 'error'): void {
@@ -637,7 +675,6 @@ function showTab(tab: 'signin' | 'signup'): void {
     const modalTitle = document.getElementById('modalTitle');
     const modalSubtitle = document.getElementById('modalSubtitle');
 
-    // Pag nagpalit ng tab, balik sa unang step ng sign up
     pendingSignup = null;
     window.clearInterval(resendTimer);
     setOtpError('');
@@ -716,10 +753,6 @@ function initEmailValidation(): void {
     });
 }
 
-/**
- * Ginagawa sa JavaScript ang OTP step ng sign up para gumana ito
- * sa lahat ng page na may authModal, kahit hindi mo galawin ang HTML.
- */
 function ensureSignupOtpForm(): HTMLFormElement | null {
     const existing = document.getElementById('signupOtpForm') as HTMLFormElement | null;
     if (existing) return existing;
@@ -819,7 +852,6 @@ function clearSignupFields(): void {
     });
 }
 
-// Kapag sumara ang modal (X, Esc, click sa labas): burahin ang pansamantalang datos, kasama ang password
 function watchAuthModalClose(): void {
     const modal = document.getElementById('authModal');
     if (!modal) return;
@@ -840,7 +872,6 @@ function bindForms(): void {
 
     watchAuthModalClose();
 
-    // OTP: numbers lang, hanggang 6 digits
     document.getElementById('signupOtp')?.addEventListener('input', (e) => {
         const input = e.target as HTMLInputElement;
         input.value = input.value.replace(/\D/g, '').slice(0, 6);
@@ -877,7 +908,6 @@ function bindForms(): void {
         }
     });
 
-    // STEP 1: ipadala ang OTP (hindi pa gagawa ng account)
     signupForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         hideAuthMessage();
@@ -917,7 +947,6 @@ function bindForms(): void {
         }
     });
 
-    // STEP 2: i-verify ang OTP, tapos saka pa lang gagawa ng account
     signupOtpForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         hideAuthMessage();
@@ -956,7 +985,6 @@ function bindForms(): void {
 
         showToast('Account created!', 'success');
 
-        // Auto sign in pagkatapos magawa ang account
         const login = await signIn(email, password);
         restoreBtn();
         pendingSignup = null;
@@ -967,7 +995,6 @@ function bindForms(): void {
             closeModal('authModal');
             updateNavAuth(login.user);
         } else {
-            // Nagawa na ang account pero hindi nag-auto login: ibalik sa Sign In tab
             showTab('signin');
             const signinEmail = document.getElementById('signinEmail') as HTMLInputElement | null;
             if (signinEmail) signinEmail.value = email;
