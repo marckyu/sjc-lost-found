@@ -105,19 +105,7 @@
             </div>
         </section>
 
-        <section class="admin-panel claims-panel">
-            <div class="panel-heading">
-                <div>
-                    <p>ACCOUNT RECOVERY</p>
-                    <h2>Password Reset Requests <span class="claims-count" id="passwordResetsCount">0</span></h2>
-                </div>
-            </div>
-            <div id="passwordResetsList" class="claims-list">
-                <div class="empty-state">
-                    <p>No password reset requests yet.</p>
-                </div>
-            </div>
-        </section>
+        <!-- PASSWORD RESET REQUESTS SECTION REMOVED -->
 
         <section class="admin-panel">
             <div class="panel-heading">
@@ -191,33 +179,6 @@
             <div class="confirm-actions">
                 <button class="admin-button danger" id="rejectBtn" type="button">Reject</button>
                 <button class="admin-button" id="approveBtn" type="button">Approve</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal" id="passwordResetModal" role="dialog" aria-modal="true" aria-labelledby="passwordResetTitle" hidden>
-        <div class="modal-content">
-            <button class="close-btn" type="button" data-close aria-label="Close dialog">&times;</button>
-            <div class="modal-intro">
-                <span class="modal-logo"><img src="/sjc-logo.png" alt="SJC Logo"></span>
-                <div>
-                    <h2 id="passwordResetTitle">Review Password Reset</h2>
-                    <p>Approve or reject this reset request.</p>
-                </div>
-            </div>
-            <div class="review-claim-info" id="passwordResetInfo"></div>
-            <div class="form-group">
-                <label for="passwordResetTemp">Temporary Password</label>
-                <input type="text" id="passwordResetTemp" placeholder="Auto-generated" readonly>
-                <small class="guide">Share this with the user via chat or notification.</small>
-            </div>
-            <div class="form-group">
-                <label for="passwordResetNote">Admin Note (optional)</label>
-                <textarea id="passwordResetNote" placeholder="Add a note for the user..." maxlength="500"></textarea>
-            </div>
-            <div class="confirm-actions">
-                <button class="admin-button danger" id="rejectResetBtn" type="button">Reject</button>
-                <button class="admin-button" id="approveResetBtn" type="button">Approve</button>
             </div>
         </div>
     </div>

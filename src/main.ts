@@ -2,7 +2,7 @@ import './pb';
 import { pb } from './pb';
 import { onAuthChange, getUserProfile, signOut, signIn, requestSignUpOtp, completeSignUp, isValidPhinmaEdEmail } from './auth';
 import { openModal, closeModal, showToast, escapeHtml } from './ui';
-import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages, findUserByEmail, createPasswordReset } from './db';
+import { watchNotifications, watchUnreadMessages, watchAdminMessagesForUser, watchAllAdminMessages } from './db';
 import { initAvatarUploader } from './profile';
 import { initSync } from './offline/sync';
 import { initOfflineIndicator, pulseSync } from './offline/indicator';
@@ -406,10 +406,6 @@ function createForgotPasswordModal(): void {
                     <input id="forgotEmail" type="email" placeholder="name@phinmaed.com" required data-phinmaed pattern="^[a-zA-Z0-9._%+-]+@phinmaed\.com$">
                 </div>
                 <button class="submit-button" type="submit" id="sendOtpBtn">Send OTP</button>
-                <p class="form-footer" style="border-top: none; padding-top: 0; margin-top: 10px;">
-                    Having trouble with OTP? 
-                    <button type="button" class="inline-button" id="requestManualResetBtn">Request Admin Help</button>
-                </p>
             </form>
 
             <form id="forgotStep2" hidden novalidate>
@@ -451,41 +447,6 @@ function createForgotPasswordModal(): void {
 
     document.getElementById('forgotStep1')?.addEventListener('submit', handleSendOtp);
     document.getElementById('forgotStep2')?.addEventListener('submit', handleVerifyOtp);
-
-    document.getElementById('requestManualResetBtn')?.addEventListener('click', async () => {
-        const email = (document.getElementById('forgotEmail') as HTMLInputElement).value.trim();
-        if (!isValidPhinmaEdEmail(email)) {
-            showForgotMessage('Please enter a valid PHINMAEd email first.', 'error');
-            return;
-        }
-
-        const btn = document.getElementById('requestManualResetBtn') as HTMLButtonElement;
-        btn.disabled = true;
-        btn.textContent = 'Sending...';
-
-        try {
-            const user = await findUserByEmail(email);
-            if (!user) {
-                showForgotMessage('User not found.', 'error');
-                return;
-            }
-
-            await createPasswordReset(user.id, user.fullname, user.email);
-            showForgotMessage('Request sent to admin. They will contact you via chat.', 'success');
-            
-            setTimeout(() => {
-                closeForgotPasswordModal();
-                showToast('Admin notified.', 'success');
-            }, 3000);
-
-        } catch (err) {
-            console.error(err);
-            showForgotMessage('Failed to send request.', 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Request Admin Help';
-        }
-    });
 }
 
 function showForgotMessage(msg: string, type: 'success' | 'error'): void {

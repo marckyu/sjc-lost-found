@@ -4,28 +4,24 @@ import {
     watchClaims, approveClaim, rejectClaim, createConversation,
     watchAllAdminMessages, getAdminMessagesForThread,
     buildAdminThreads, markAdminThreadAsRead, getUsersByIds,
-    watchUnreadMessages, watchPasswordResets, approvePasswordReset,
-    rejectPasswordReset
+    watchUnreadMessages
 } from './db';
 import { sendAdminMessageOffline } from './offline/wrappers';
 import { showToast, escapeHtml, formatDate } from './ui';
 import { runMatching } from './matcher';
-import type { Item, User, Notification, Claim, AdminMessage, AdminThread, PasswordReset } from './types';
+import type { Item, User, Notification, Claim, AdminMessage, AdminThread } from './types';
 
 let currentUser: User | null = null;
 let allItems: Item[] = [];
 let allClaims: Claim[] = [];
 let allAdminMessages: AdminMessage[] = [];
 let allAdminThreads: AdminThread[] = [];
-let allPasswordResets: PasswordReset[] = [];
 let activeThread: AdminThread | null = null;
 let notifUnsubscribe: (() => void) | null = null;
 let adminMsgsUnsubscribe: (() => void) | null = null;
 let msgUnreadUnsub: (() => void) | null = null;
 let threadMsgsUnsubscribe: (() => void) | null = null;
-let pwdResetsUnsubscribe: (() => void) | null = null;
 let activeClaim: Claim | null = null;
-let activeReset: PasswordReset | null = null;
 let userMsgUnread = 0;
 let adminMsgUnread = 0;
 
@@ -41,7 +37,6 @@ const inquiryHeaderName = document.getElementById('inquiryHeaderName');
 const inquiryHeaderItem = document.getElementById('inquiryHeaderItem');
 const inquiryReplyForm = document.getElementById('inquiryReplyForm') as HTMLFormElement | null;
 const inquiryReplyInput = document.getElementById('inquiryReplyInput') as HTMLInputElement | null;
-const passwordResetsList = document.getElementById('passwordResetsList');
 
 function renderStats(): void {
     const total = document.getElementById('totalItems');
@@ -55,205 +50,6 @@ function renderStats(): void {
     if (found) found.textContent = String(allItems.filter(i => i.status === 'found' && !i.recovered).length);
     if (verified) verified.textContent = String(allItems.filter(i => i.verified && !i.recovered).length);
     if (recovered) recovered.textContent = String(allItems.filter(i => i.recovered).length);
-}
-
-function renderPasswordResets(): void {
-    if (!passwordResetsList) return;
-
-    const pending = allPasswordResets.filter(r => r.status === 'pending');
-    const countEl = document.getElementById('passwordResetsCount');
-    if (countEl) countEl.textContent = String(pending.length);
-
-    if (allPasswordResets.length === 0) {
-        passwordResetsList.innerHTML = '<div class="empty-state"><p>No password reset requests yet.</p></div>';
-        return;
-    }
-
-    passwordResetsList.innerHTML = allPasswordResets.map(reset => {
-        let statusClass = 'claim-status-pending';
-        let statusText = 'Pending';
-
-        if (reset.status === 'approved') {
-            statusClass = 'claim-status-approved';
-            statusText = 'Approved';
-        } else if (reset.status === 'rejected') {
-            statusClass = 'claim-status-rejected';
-            statusText = 'Rejected';
-        }
-
-        const info = userCache.get(reset.userId);
-        const avatar = info?.avatar;
-        const initial = (reset.userName || '?').charAt(0).toUpperCase();
-
-        const avatarHtml = avatar
-            ? `<img src="${avatar}" alt="${escapeHtml(reset.userName)}" class="claim-claimant-avatar">`
-            : `<span class="claim-claimant-avatar">${escapeHtml(initial)}</span>`;
-
-        let actionsHtml = '';
-        if (reset.status === 'pending') {
-            actionsHtml = `
-                <button class="admin-button" data-reset-action="review" data-id="${reset.id}">Review</button>
-            `;
-        } else if (reset.status === 'approved' && reset.tempPassword) {
-            actionsHtml = `
-                <span class="temp-password-badge">Temp: <code>${escapeHtml(reset.tempPassword)}</code></span>
-            `;
-        }
-
-        return `
-            <article class="claim-card">
-                <div class="claim-card-body">
-                    <div class="claim-card-head">
-                        <div>
-                            <strong class="claim-item-name">${escapeHtml(reset.userName)}</strong>
-                            <span class="claim-status-badge ${statusClass}">${statusText}</span>
-                        </div>
-                        <small class="claim-date">${formatDate(reset.createdAt)}</small>
-                    </div>
-                    <div class="claim-claimant-row">
-                        ${avatarHtml}
-                        <span class="claim-claimant-name">${escapeHtml(reset.userEmail)}</span>
-                    </div>
-                    ${reset.adminNote ? `<div class="claim-admin-note"><strong>Admin Note:</strong> ${escapeHtml(reset.adminNote)}</div>` : ''}
-                    <div class="claim-actions">${actionsHtml}</div>
-                </div>
-            </article>
-        `;
-    }).join('');
-
-    passwordResetsList.querySelectorAll<HTMLButtonElement>('[data-reset-action="review"]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            if (!id) return;
-            const reset = allPasswordResets.find(r => r.id === id);
-            if (!reset) return;
-            openPasswordResetModal(reset);
-        });
-    });
-}
-
-function generateTempPassword(): string {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    let pwd = '';
-    for (let i = 0; i < 10; i++) {
-        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return pwd;
-}
-
-function openPasswordResetModal(reset: PasswordReset): void {
-    const modal = document.getElementById('passwordResetModal');
-    const info = document.getElementById('passwordResetInfo');
-    const noteInput = document.getElementById('passwordResetNote') as HTMLTextAreaElement | null;
-    const tempInput = document.getElementById('passwordResetTemp') as HTMLInputElement | null;
-    if (!modal || !info) return;
-
-    activeReset = reset;
-    if (noteInput) noteInput.value = '';
-    if (tempInput) tempInput.value = generateTempPassword();
-
-    info.innerHTML = `
-        <div class="review-row">
-            <span class="review-label">User</span>
-            <span class="review-value">${escapeHtml(reset.userName)}</span>
-        </div>
-        <div class="review-row">
-            <span class="review-label">Email</span>
-            <span class="review-value">${escapeHtml(reset.userEmail)}</span>
-        </div>
-        <div class="review-row">
-            <span class="review-label">Requested</span>
-            <span class="review-value">${formatDate(reset.createdAt)}</span>
-        </div>
-    `;
-
-    modal.hidden = false;
-    document.body.style.overflow = 'hidden';
-}
-
-function closePasswordResetModal(): void {
-    const modal = document.getElementById('passwordResetModal');
-    if (!modal) return;
-    modal.hidden = true;
-    document.body.style.overflow = '';
-    activeReset = null;
-}
-
-async function handleApprovePasswordReset(): Promise<void> {
-    if (!activeReset || !currentUser) return;
-
-    const tempInput = document.getElementById('passwordResetTemp') as HTMLInputElement | null;
-    const noteInput = document.getElementById('passwordResetNote') as HTMLTextAreaElement | null;
-    const tempPassword = tempInput?.value.trim() || '';
-    const note = noteInput?.value.trim() || '';
-
-    if (!tempPassword) {
-        showToast('Please provide a temporary password.', 'warning');
-        return;
-    }
-
-    const btn = document.getElementById('approveResetBtn') as HTMLButtonElement | null;
-    if (btn) btn.disabled = true;
-
-    try {
-        await approvePasswordReset(activeReset.id, currentUser.uid, tempPassword, note);
-
-        await sendNotification(
-            activeReset.userId,
-            'password-reset',
-            `Your password reset request has been APPROVED. Your temporary password is: ${tempPassword}. Please log in and change your password immediately.`
-        );
-
-        try {
-            await sendAdminMessageOffline({
-                userId: activeReset.userId,
-                userName: activeReset.userName,
-                userEmail: activeReset.userEmail,
-                itemId: 'password-reset',
-                itemName: 'Password Reset',
-                senderRole: 'admin',
-                text: `Your password reset request has been approved. Temporary password: ${tempPassword}. Please log in and change your password immediately.`
-            });
-        } catch (msgErr) {
-            console.error('Failed to send admin message:', msgErr);
-        }
-
-        showToast('Password reset approved. User notified.', 'success');
-        closePasswordResetModal();
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to approve request.', 'error');
-    } finally {
-        if (btn) btn.disabled = false;
-    }
-}
-
-async function handleRejectPasswordReset(): Promise<void> {
-    if (!activeReset || !currentUser) return;
-
-    const noteInput = document.getElementById('passwordResetNote') as HTMLTextAreaElement | null;
-    const note = noteInput?.value.trim() || '';
-
-    const btn = document.getElementById('rejectResetBtn') as HTMLButtonElement | null;
-    if (btn) btn.disabled = true;
-
-    try {
-        await rejectPasswordReset(activeReset.id, currentUser.uid, note);
-
-        await sendNotification(
-            activeReset.userId,
-            'password-reset',
-            `Your password reset request was not approved.${note ? ' Reason: ' + note : ''}`
-        );
-
-        showToast('Password reset rejected.', 'info');
-        closePasswordResetModal();
-    } catch (err) {
-        console.error(err);
-        showToast('Failed to reject request.', 'error');
-    } finally {
-        if (btn) btn.disabled = false;
-    }
 }
 
 function renderClaims(): void {
@@ -1244,9 +1040,6 @@ function bindUI(): void {
     document.getElementById('approveBtn')?.addEventListener('click', handleApprove);
     document.getElementById('rejectBtn')?.addEventListener('click', handleReject);
 
-    document.getElementById('approveResetBtn')?.addEventListener('click', handleApprovePasswordReset);
-    document.getElementById('rejectResetBtn')?.addEventListener('click', handleRejectPasswordReset);
-
     inquiryReplyForm?.addEventListener('submit', (e) => {
         e.preventDefault();
         handleSendAdminReply();
@@ -1367,18 +1160,12 @@ async function initializeAdmin(): Promise<void> {
             refreshMsgBadge();
         });
 
-        pwdResetsUnsubscribe = watchPasswordResets((resets) => {
-            allPasswordResets = resets;
-            renderPasswordResets();
-        });
-
         watchItems(async items => {
             allItems = items;
 
             const uids = [...new Set(items.map(i => i.userId))];
             const claimUids = allClaims.map(c => c.userId);
-            const resetUids = allPasswordResets.map(r => r.userId);
-            const allUids = [...new Set([...uids, ...claimUids, ...resetUids])];
+            const allUids = [...new Set([...uids, ...claimUids])];
 
             try {
                 userCache = await getUsersByIds(allUids);
@@ -1389,7 +1176,6 @@ async function initializeAdmin(): Promise<void> {
             renderStats();
             renderTable();
             renderClaims();
-            renderPasswordResets();
         });
 
         watchClaims(async claims => {
