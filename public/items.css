@@ -1545,6 +1545,6 @@ html.is-admin .nav-links a[href="index.html"] { display: none !important; }
 
 @media (max-width: 700px) {
     .user-menu-trigger {
-        gap: 8px;
-    }   
+      gap: 8px;
+    }
 }
