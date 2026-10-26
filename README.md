@@ -18,13 +18,43 @@ SJC Campus Lost & Found is a full-stack web application designed to streamline t
 - **Offline-First** — Submit reports, claims, and messages offline; automatic sync when connected
 - **Progressive Web App** — Installable on mobile devices
 
-## System Roles & User Management (Para kay Camille)
+## System Roles & User Registration Rules
 
-Para maging malinaw sa panel at sa documentation, heto ang eksaktong roles at rules ng system:
+To maintain data integrity and security within the campus, the system strictly enforces the following rules for users:
 
-1. **User (Student / Faculty / Staff):** Lahat ng may valid na `@phinmaed.com` email ay pwedeng mag-register. Sila yung mga nagre-report ng lost/found items at naghahanap ng gamit nila.
-2. **Admin (SJC Office / Student Affairs):** Sila yung humahawak ng system. **Hindi kasama ang mga teachers dito**. Ang Admin ay yung specific na opisina sa school (tulad ng SAO) na nag-a-approve ng claims at nag-mamanage ng items.
-3. **Non-PHINMAEd Personnel (Janitor, Guard, etc.):** Since required ang PHINMAEd email, **hindi sila makakagawa ng sariling account**. Kapag may nakita silang item, ibibigay nila ito physically sa SJC Office. Ang **Admin** ang magre-report sa system on their behalf para pumasok sa database at AI matching.
+1. **User Role (Students, Faculty, Staff):** 
+   Any individual with a valid `@phinmaed.com` email address can register as a User. This includes students and regular faculty members. They are authorized to report lost/found items, browse the database, and submit claims.
+   
+2. **Admin Role (SJC Office / Student Affairs):** 
+   Administrative access is not given to regular teachers. The Admin role is specifically assigned to the designated office managing the Lost & Found (e.g., Student Affairs Office or Security Office). They handle report verification, claim approvals, and manage the AI matching engine.
+   
+3. **Non-PHINMAEd Personnel (e.g., Janitors, Security Guards):** 
+   Since account creation requires a PHINMAEd email, non-academic staff cannot create direct accounts. If a janitor or guard finds an item, they must physically surrender it to the SJC Office. The Admin will file the report on their behalf using the Admin dashboard to ensure the item enters the database and gets processed by the AI.
+
+## Infrastructure & Hosting Architecture (For UML)
+
+Para malinaw sa UML Diagrams ninyo (Use Case at Sequence), heto ang exact hierarchy ng backend:
+
+1. **Wisbyte (Cloud Hosting Provider):** The external cloud server where the backend is deployed. It provides the public URL (e.g., `sjc-lostfound.wisp.uno`) and ensures the system is accessible online.
+2. **PocketBase (Backend Application):** Runs inside the Wisbyte server. It acts as the API layer, handling authentication, real-time WebSockets, file storage, and custom JS hooks (for OTP).
+3. **SQLite (Main Database):** The relational database engine managed by PocketBase. All persistent data (users, items, matches, messages) are stored here.
+4. **IndexedDB (Local Offline Database):** A browser-based storage used by the frontend. When a user is offline, reports and messages are saved here temporarily and synced to SQLite once the connection returns.
+
+## AI Matching & Notification Flow (For UML Sequence Diagrams)
+
+Kapag gagawa kayo ng Sequence Diagram, heto ang tamang flow ng AI Matching:
+
+1. **Admin Trigger:** The Admin clicks the "Run AI Match" button (or verifies a newly submitted item).
+2. **AI Computation:** The frontend sends image URLs to the Python Flask microservice, which computes the similarity score.
+3. **Database Update:** If the score meets the threshold, the system saves the result to the `matches` collection. Simultaneously, it creates a record in the `notifications` collection.
+4. **Real-Time Notification:** Because the user is connected via WebSockets, the UI instantly updates. A red badge appears on the **In-App Notification Bell** (top navigation bar), and a new alert appears on the **Notifications Page**.
+5. **User Action:** The user can view the match in the **"AI Potential Matches"** panel on the Items page. Clicking "Confirm" automatically creates a conversation and redirects them to the **Messages Page** to coordinate the item return.
+
+## System Flowchart
+
+The following diagram illustrates the end-to-end process of the SJC Campus Lost & Found system.
+
+![SJC Lost and Found System Flowchart](./flowchart.jpg)
 
 ## Tech Stack
 
@@ -36,31 +66,6 @@ Para maging malinaw sa panel at sa documentation, heto ang eksaktong roles at ru
 | Offline Storage | IndexedDB (via idb) |
 | PWA | Service Worker + Web Manifest |
 | Deployment | Vercel (frontend) + Wisbyte (PocketBase backend) + Cloudflare Tunnel (AI service) |
-
-## Database & Hosting Architecture (Para sa DFD / UML)
-
-Madalas ito nakakalito sa defense, kaya heto ang tamang hierarchy ng backend natin:
-
-1. **Wisbyte (Cloud Hosting Provider):** Ito yung server sa internet kung saan naka-deploy yung backend natin. Sila yung nagbibigay ng public URL (e.g., `sjc-lostfound.wisp.uno`).
-2. **PocketBase (Backend Application):** Ito yung software na tumatakbo *sa loob* ng Wisbyte. Sila ang humahawak ng API, WebSockets (para sa chat), Authentication, at Custom JS Hooks (para sa OTP).
-3. **SQLite (Main Database):** Ito yung totoong database engine na nag-iimbak ng lahat ng records (users, items, matches).
-4. **IndexedDB (Offline Database):** Ito yung nasa browser ng user para makapag-save sila ng report kahit walang internet, tapos sync sa SQLite kapag may net na.
-
-## System Flowchart
-
-The following diagram illustrates the end-to-end process of the SJC Campus Lost & Found system, from reporting to item recovery.
-
-![SJC Lost and Found System Flowchart](./flowchart.jpg)
-
-## AI Matching & Notification Flow (Para sa UML / DFD ni Camille)
-
-Heto ang eksaktong nangyayari sa system kapag may AI Match (napaka-importante para sa Sequence Diagram):
-
-1. **Admin triggers AI:** Pinipindot ng Admin ang "Run AI Match" (o nag-Verify ng bagong item).
-2. **AI Service Computes:** Nagpapadala ng request ang Frontend sa **Python Flask Microservice** para i-compare yung images (ImageHash) at text.
-3. **Database Saves:** Kapag naka-match (above threshold), nags-save ang system sa **`matches`** collection. Kasabay nito, nag-ge-generate ito ng record sa **`notifications`** database.
-4. **User Notified (Real-time):** Dahil naka-WebSocket ang user, **instant na lalabas yung pulang badge** sa notification bell nila. Makikita din nila yung AI Match Card sa "Potential Matches" panel sa items page.
-5. **User Action:** Kapag clinick ng user ang "Confirm", mag-ge-generate ng conversation at mapupunta sila sa Messages page para mag-chat.
 
 ## Project Structure
 
@@ -124,10 +129,10 @@ Open http://localhost:5173
 
 ## Architecture & Data Flow
 
-**Client:** Vite + TypeScript multi-page application. Six HTML entry points.
-**Backend:** PocketBase provides SQLite database, REST + realtime WebSocket API, file storage, auth, and custom JS hooks.
-**AI Image Service:** Python Flask microservice. Accepts two arrays of image URLs, returns a similarity score using perceptual hashing (pHash 50%, dHash 30%, aHash 20%) with Hamming distance.
-**Offline Engine:** Custom IndexedDB layer with four modules — wrappers, queue, sync, and indicator.
+**Client:** Vite + TypeScript multi-page application.
+**Backend:** PocketBase provides SQLite database, REST API, and realtime WebSocket API.
+**AI Image Service:** Python Flask microservice. Returns a similarity score using perceptual hashing.
+**Offline Engine:** Custom IndexedDB layer with wrappers, queue, sync, and indicator modules.
 
 ### Data Flow — Report Submission
 1. User fills report form.
@@ -135,26 +140,25 @@ Open http://localhost:5173
 3. On online event: replay queue, POST to PocketBase.
 4. Realtime event notifies all subscribers.
 5. AI matcher runs (if triggered by admin).
-6. Matches saved to matches collection.
+6. Matches saved to `matches` collection.
 7. Notifications sent to affected users.
 
 ### Data Flow — Ownership Claim
-1. User clicks "Claim This Item" and fills out form.
-2. POST to claims collection.
-3. Admin dashboard notified (realtime).
-4. Admin approves, status becomes approved.
-5. `markAsRecovered(itemId)` is called.
-6. Conversation created between owner and claimant.
-7. User notified, chat unlocked.
+1. User clicks "Claim This Item" and submits proof.
+2. Admin dashboard notified (realtime).
+3. Admin reviews and approves.
+4. System marks item as recovered.
+5. Conversation created between owner and claimant.
+6. User notified, chat unlocked.
 
 ### Data Flow — Password Reset (OTP)
-1. User clicks "Forgot Password" and enters their PHINMAEd email.
+1. User enters PHINMAEd email in Forgot Password.
 2. Frontend sends POST to `/request-otp`.
-3. Backend generates 6-digit OTP, saves to `otp_codes` with 10-min expiration.
-4. Backend sends OTP via SMTP to user's email.
+3. Backend generates OTP, saves to `otp_codes` with 10-min expiration.
+4. OTP sent via SMTP.
 5. User enters OTP and new password.
 6. Frontend sends POST to `/verify-otp`.
-7. Backend validates OTP, updates password, deletes OTP from database.
+7. Backend validates OTP, updates password, deletes OTP.
 
 ## Database Schema
 
@@ -274,15 +278,6 @@ Campus WiFi is often unreliable. Without offline support, user work is lost when
 ### How It Works
 All write operations go through a wrapper. If online, the API is called directly. If offline, the operation is enqueued in IndexedDB. A sync engine listens for the online event and replays the queue in order.
 
-### Visual Feedback
-| State | Banner | Color |
-|-------|--------|-------|
-| Offline submit | Offline — will sync when connected | Amber |
-| Syncing | Syncing... | Green |
-| Success | Sync successful! | Green (auto-hide 1.5s) |
-| Pending | N pending | Blue |
-| Error | Sync failed — will retry | Red |
-
 ### Sync Triggers
 - window.online event
 - window.focus event
@@ -290,43 +285,34 @@ All write operations go through a wrapper. If online, the API is called directly
 - Every 5 seconds (background check)
 - 500ms after page load
 
-## Expected Outcomes & Future Works
+## Expected Outcomes
 
-**Expected Outcomes:**
 1. **Faster Item Recovery:** Because of the AI Matching Engine, the chances of finding the owner or the lost item are higher and faster compared to manual Facebook group posting.
 2. **Centralized System:** Magkakaroon ng iisang platform ang SJC community para sa Lost & Found.
 3. **Data Privacy:** Legit students, faculty, at staff lang ng SJC ang makakagamit ng system dahil sa PHINMAEd email restriction.
 4. **Operational Efficiency for Admin:** Mas madali para sa SJC office ang mag-track at mag-manage ng mga reported items.
 
-**Future Works (Possibilities):**
-1. **SMS Notification Integration:** Para sa mga estudyanteng hindi madalas mag-check ng email.
-2. **Advanced AI (CNN / YOLO):** I-upgrade ang Image Analysis gamit ang object detection models.
-3. **Analytics Dashboard:** Magdadagdag ng charts sa Admin para makita kung saang location madaming nawawalang item.
+## Q and A na nahula hula lang
 
-## Possible Defense Questions & Answers (Taglish)
+ito lang ung possibilities na itatanong, 50/50 lang I'm not sure tlga to, but ito lang makakatulong if ever -developer
 
-Heto ang mga posibleng itanong ng panel sa defense at kung paano niyo sila sasagutin nang natural:
+**Q1: Since required ang PHINMAEd email sa system, paano po ninyo hinahandle yung mga reports galing sa janitor o security guard na walang ganung email?**
+*   **A:** *"Since hindi sila makakagawa ng direct account, ang protocol po natin is ibibigay nila physically yung item sa SJC Office. Then, ang Admin po ang magre-report non sa system on their behalf. This ensures na lahat ng nahanap na gamit ay pumapasok sa database at na-a-analyze ng AI matching engine, kahit sino pa ang nakakita."*
 
-**Q: Sino-sino ang pwedeng maging Admin? Kasama ba ang teachers?**
-* **A:** *"Hindi po. Ang Admin role ay exclusive para sa SJC Office or Student Affairs (tulad ng SAO). Sila yung humahawak ng Lost & Found. Yung mga teachers ay 'User' role lang po, same as students, kasi sila yung mga nagrereport at naghahanap ng gamit."*
+**Q2: Sino po ba exactly ang may hawak ng Admin role? Kasama po ba ang mga teachers doon?**
+*   **A:** *"Hindi po. Ang mga teachers ay naka-register under 'User' role lang, same as students. Yung 'Admin' role po ay exclusive lang sa SJC Office or Student Affairs. Sila po yung authorized mag-verify ng reports, mag-run ng AI match, at mag-approve ng mga claims."*
 
-**Q: Paano kung ang nakakita ng item ay janitor o security guard na walang PHINMAEd email?**
-* **A:** *"Since required po ang PHINMAEd email, hindi sila makakagawa ng direct account. Ang protocol po is ibibigay nila physically yung item sa SJC Office. Then, ang Admin po ang magre-report non sa system on their behalf para pumasok sa database at AI matching. This ensures na lahat ng items ay accounted for at legitimate."*
+**Q3: Kapag po may nahanap na match yung AI, paano po nalalaman ng user? Saan po pumupunta yung notification?**
+*   **A:** *"Real-time po ito dahil gumagamit tayo ng PocketBase WebSockets. Pagka-save ng AI ng match sa database, sabay po siyang nag-ge-generate ng notification. Agad po siyang mag-aappear sa user—magkakaroon ng red badge yung Notification Bell icon nila at may match card sa Items page. Hindi na po nila kailangang i-refresh yung page."*
 
-**Q: Saan nakikita ng user yung AI Match notification?**
-* **A:** *"Real-time po. Pagka-click ng admin sa 'Run AI Match', mag-ge-generate ng notification record sa database. Dahil naka-WebSocket tayo, magkakaroon agad ng red badge yung bell icon sa screen ng user. Makikita din nila yung match card sa 'Potential Matches' panel sa items page nila kung saan pwede nila i-confirm at mag-start ng chat."*
+**Q4: Para po sa UML ninyo, paano po ninyo iki-clarify yung difference ng Wispbyte, PocketBase, at SQLite sa infrastructure niyo?**
+*   **A:** *"Yung Wispbyte po yung cloud hosting provider natin—sila yung server. Yung PocketBase po yung backend application na tumatakbo sa loob ni Wispbyte, siya yung humahawak ng API at WebSockets. Tapos yung SQLite po yung mismong database engine kung saan naka-save lahat ng data. Sa frontend naman po, may IndexedDB tayo para gumana yung offline mode."*
 
-**Q: Sa UML/DFD, paano nag-uusap ang system?**
-* **A:** *"Sa flow po: Admin clicks 'Run AI Match' -> Frontend calls Python AI Microservice -> Python computes image similarity -> PocketBase saves to `matches` and `notifications` database -> User receives the alert via WebSocket at mag-aappear sa UI nila."*
+**Q5: Sa UML Sequence Diagram ninyo, paano po nire-represent yung AI Matching process?**
+*   **A:** *"Sa diagram po, ang flow is: Admin triggers 'Run AI Match' -> Frontend calls Python AI Microservice -> Python computes the image similarity -> PocketBase saves sa matches at notifications database -> User receives the alert via WebSockets."*
 
-**Q: Ano ba talaga ang Wispbyte, PocketBase, at SQLite?**
-* **A:** *"Wisbyte is the cloud hosting provider (yung server). PocketBase is the backend application running inside Wisbyte. And SQLite is the actual database engine na nag-iimbak ng data. Yung IndexedDB naman po ay local database sa browser para sa offline mode."*
-
-**Q: Bakit may Offline-First feature?**
-* **A:** *"Mahina po ang campus WiFi sa ibang sulok ng school. Kapag nawalan ng internet, naka-save yung report sa IndexedDB. Kapag bumalik ang connection, automatic siyang mag-s-sync sa SQLite database para hindi mawala yung data."*
-
-**Q: Bakit walang 'Delete' button sa Admin Dashboard?**
-* **A:** *"Sadya po naming tinanggal ang delete button para mapanatili ang data integrity. Kailangan ng AI matching algorithm na may complete historical dataset para maging accurate. Imbes na i-delete, gumagamit kami ng statuses tulad ng 'Verified' o 'Recovered'."*
+**Q6: Bakit po walang 'Delete' button sa Admin Dashboard?**
+*   **A:** *"Sadya po naming tinanggal ang delete button para mapanatili ang data integrity. Kailangan ng AI matching algorithm na may complete historical dataset para maging accurate yung image analysis. Imbes na i-delete, gumagamit kami ng statuses tulad ng 'Verified' o 'Recovered' para may proper audit trail."*
 
 ## Team ArkNights
 
