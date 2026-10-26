@@ -18,6 +18,14 @@ SJC Campus Lost & Found is a full-stack web application designed to streamline t
 - **Offline-First** — Submit reports, claims, and messages offline; automatic sync when connected
 - **Progressive Web App** — Installable on mobile devices
 
+## System Roles & User Management (Para kay Camille)
+
+Para maging malinaw sa panel at sa documentation, heto ang eksaktong roles at rules ng system:
+
+1. **User (Student / Faculty / Staff):** Lahat ng may valid na `@phinmaed.com` email ay pwedeng mag-register. Sila yung mga nagre-report ng lost/found items at naghahanap ng gamit nila.
+2. **Admin (SJC Office / Student Affairs):** Sila yung humahawak ng system. **Hindi kasama ang mga teachers dito**. Ang Admin ay yung specific na opisina sa school (tulad ng SAO) na nag-a-approve ng claims at nag-mamanage ng items.
+3. **Non-PHINMAEd Personnel (Janitor, Guard, etc.):** Since required ang PHINMAEd email, **hindi sila makakagawa ng sariling account**. Kapag may nakita silang item, ibibigay nila ito physically sa SJC Office. Ang **Admin** ang magre-report sa system on their behalf para pumasok sa database at AI matching.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -29,19 +37,30 @@ SJC Campus Lost & Found is a full-stack web application designed to streamline t
 | PWA | Service Worker + Web Manifest |
 | Deployment | Vercel (frontend) + Wisbyte (PocketBase backend) + Cloudflare Tunnel (AI service) |
 
+## Database & Hosting Architecture (Para sa DFD / UML)
+
+Madalas ito nakakalito sa defense, kaya heto ang tamang hierarchy ng backend natin:
+
+1. **Wisbyte (Cloud Hosting Provider):** Ito yung server sa internet kung saan naka-deploy yung backend natin. Sila yung nagbibigay ng public URL (e.g., `sjc-lostfound.wisp.uno`).
+2. **PocketBase (Backend Application):** Ito yung software na tumatakbo *sa loob* ng Wisbyte. Sila ang humahawak ng API, WebSockets (para sa chat), Authentication, at Custom JS Hooks (para sa OTP).
+3. **SQLite (Main Database):** Ito yung totoong database engine na nag-iimbak ng lahat ng records (users, items, matches).
+4. **IndexedDB (Offline Database):** Ito yung nasa browser ng user para makapag-save sila ng report kahit walang internet, tapos sync sa SQLite kapag may net na.
+
 ## System Flowchart
 
 The following diagram illustrates the end-to-end process of the SJC Campus Lost & Found system, from reporting to item recovery.
 
 ![SJC Lost and Found System Flowchart](./flowchart.jpg)
 
-**Flow Description:**
-1. The process starts when a user reports a **Lost** or **Found** item by filling out the required details (Name, Email, Contact, Location, Description, and Image).
-2. The data is submitted and stored in the **Database**.
-3. The **AI Matching Engine** processes the data using Text and Image Analysis to find a potential match.
-4. If a potential match is found and the confidence meets the threshold, the system generates **AI Match Emails/Notifications**.
-5. The users are notified and can initiate a **Secure Chat** to coordinate the item return.
-6. Once **Ownership is Verified**, the item is marked as **Returned** and eventually **Recovered**.
+## AI Matching & Notification Flow (Para sa UML / DFD ni Camille)
+
+Heto ang eksaktong nangyayari sa system kapag may AI Match (napaka-importante para sa Sequence Diagram):
+
+1. **Admin triggers AI:** Pinipindot ng Admin ang "Run AI Match" (o nag-Verify ng bagong item).
+2. **AI Service Computes:** Nagpapadala ng request ang Frontend sa **Python Flask Microservice** para i-compare yung images (ImageHash) at text.
+3. **Database Saves:** Kapag naka-match (above threshold), nags-save ang system sa **`matches`** collection. Kasabay nito, nag-ge-generate ito ng record sa **`notifications`** database.
+4. **User Notified (Real-time):** Dahil naka-WebSocket ang user, **instant na lalabas yung pulang badge** sa notification bell nila. Makikita din nila yung AI Match Card sa "Potential Matches" panel sa items page.
+5. **User Action:** Kapag clinick ng user ang "Confirm", mag-ge-generate ng conversation at mapupunta sila sa Messages page para mag-chat.
 
 ## Project Structure
 
@@ -103,82 +122,45 @@ Terminal 3 — Vite dev server:
 
 Open http://localhost:5173
 
-## Build for Production
+## Architecture & Data Flow
 
-    npm run build
-
-Output goes to dist/. Deploy the dist/ folder to any static host (Vercel recommended).
-
-## Architecture
-
-The system follows a three-tier architecture.
-
-**Client:** Vite + TypeScript multi-page application. Six HTML entry points, each loading its own module. Shared infrastructure handles PocketBase client, auth, data access, UI helpers, and types.
-
-**Backend:** PocketBase provides SQLite database, REST + realtime WebSocket API, file storage, auth with PHINMAEd email validation, admin UI, and custom JS hooks. The `pb_hooks` folder contains custom server-side logic for generating secure OTPs and handling password resets.
-
+**Client:** Vite + TypeScript multi-page application. Six HTML entry points.
+**Backend:** PocketBase provides SQLite database, REST + realtime WebSocket API, file storage, auth, and custom JS hooks.
 **AI Image Service:** Python Flask microservice. Accepts two arrays of image URLs, returns a similarity score using perceptual hashing (pHash 50%, dHash 30%, aHash 20%) with Hamming distance.
-
-**Offline Engine:** Custom IndexedDB layer with four modules — wrappers (try online, fallback queue), queue (pending ops), sync (replay on reconnect), and indicator (visual feedback).  
+**Offline Engine:** Custom IndexedDB layer with four modules — wrappers, queue, sync, and indicator.
 
 ### Data Flow — Report Submission
-
-1. User fills report form
-2. If online: POST to PocketBase items
-3. If offline: save to IndexedDB queue
-4. On online event: replay queue, POST to PocketBase
-5. Realtime event notifies all subscribers
-6. AI matcher runs
-7. Matches saved to matches collection
-8. Notifications sent to affected users
+1. User fills report form.
+2. If online: POST to PocketBase items. If offline: save to IndexedDB queue.
+3. On online event: replay queue, POST to PocketBase.
+4. Realtime event notifies all subscribers.
+5. AI matcher runs (if triggered by admin).
+6. Matches saved to matches collection.
+7. Notifications sent to affected users.
 
 ### Data Flow — Ownership Claim
-
-1. User clicks "Claim This Item"
-2. Fill claim form (contact + proof)
-3. POST to claims collection
-4. Admin dashboard notified (realtime)
-5. Admin reviews via modal
-6. Approve, status becomes approved
-7. markAsRecovered(itemId) called
-8. Conversation created between owner and claimant
-9. User notified, chat unlocked
+1. User clicks "Claim This Item" and fills out form.
+2. POST to claims collection.
+3. Admin dashboard notified (realtime).
+4. Admin approves, status becomes approved.
+5. `markAsRecovered(itemId)` is called.
+6. Conversation created between owner and claimant.
+7. User notified, chat unlocked.
 
 ### Data Flow — Password Reset (OTP)
-
 1. User clicks "Forgot Password" and enters their PHINMAEd email.
-2. Frontend sends a POST request to the custom PocketBase route `/request-otp`.
-3. Backend generates a 6-digit numeric OTP and saves it to the `otp_codes` collection with a 10-minute expiration.
-4. Backend uses PocketBase's mailer to send the OTP via SMTP to the user's email.
-5. User enters the OTP and their new password on the frontend.
-6. Frontend sends a POST request to `/verify-otp`.
-7. Backend validates the OTP against the database and checks if it has not expired.
-8. If valid, the password is updated, and the OTP is deleted from the database to prevent reuse.
-
-## System Connections (Environment Variables)
-
-The system relies on three main components that communicate via REST APIs and WebSockets. The connections are established using the following environment variables:
-
-### 1. Frontend to Backend (PocketBase)
-- **Environment Variable:** `VITE_PB_URL`
-- **Connection Type:** REST API & Realtime WebSocket
-- **Purpose:** The frontend (hosted on Vercel) connects to the PocketBase backend (hosted on Wisbyte) to handle authentication, database queries, file uploads, and real-time subscriptions for chat and notifications.
-
-### 2. Frontend to AI Service (Python Flask)
-- **Environment Variable:** `VITE_MATCHER_URL`
-- **Connection Type:** HTTP POST Request
-- **Purpose:** When the admin triggers "Run AI Match", the frontend sends an HTTP request containing the image URLs to the Python microservice. The service processes the images and returns a similarity score.
-
-### 3. Backend to SMTP Server (Email)
-- **Connection Type:** SMTP (Simple Mail Transfer Protocol)
-- **Purpose:** The PocketBase backend connects to an external SMTP server to send 6-digit OTPs for sign-up and password resets.
+2. Frontend sends POST to `/request-otp`.
+3. Backend generates 6-digit OTP, saves to `otp_codes` with 10-min expiration.
+4. Backend sends OTP via SMTP to user's email.
+5. User enters OTP and new password.
+6. Frontend sends POST to `/verify-otp`.
+7. Backend validates OTP, updates password, deletes OTP from database.
 
 ## Database Schema
 
 Database is managed by PocketBase (SQLite). Nine collections.
 
 ### users
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -189,7 +171,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | role | select | user or admin |
 
 ### items
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -207,7 +188,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | images | file array | max 5 |
 
 ### claims
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -223,7 +203,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | reviewedBy | text | nullable |
 
 ### notifications
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -233,7 +212,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | read | bool | default false |
 
 ### conversations
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -247,7 +225,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | hiddenFor | text array | user ids who hid thread |
 
 ### messages
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -259,7 +236,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | read | bool | default false |
 
 ### admin_messages
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -273,7 +249,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | read | bool | default false |
 
 ### matches
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -284,7 +259,6 @@ Database is managed by PocketBase (SQLite). Nine collections.
 | status | select | pending/confirmed/rejected/completed |
 
 ### otp_codes
-
 | Field | Type | Notes |
 |-------|------|-------|
 | id | text | PK |
@@ -295,15 +269,12 @@ Database is managed by PocketBase (SQLite). Nine collections.
 ## Offline-First Feature
 
 ### Why Offline-First
-
 Campus WiFi is often unreliable. Without offline support, user work is lost when connectivity drops.
 
 ### How It Works
-
 All write operations go through a wrapper. If online, the API is called directly. If offline, the operation is enqueued in IndexedDB. A sync engine listens for the online event and replays the queue in order.
 
 ### Visual Feedback
-
 | State | Banner | Color |
 |-------|--------|-------|
 | Offline submit | Offline — will sync when connected | Amber |
@@ -312,122 +283,50 @@ All write operations go through a wrapper. If online, the API is called directly
 | Pending | N pending | Blue |
 | Error | Sync failed — will retry | Red |
 
-### Chat — Messenger-Style Pending Messages
-
-When sending a message offline:
-
-1. Message bubble appears immediately with "Sending..." indicator
-2. Bubble pulses subtly while pending
-3. When sync completes: text changes to "Sent"
-4. Real message reloads from server, replacing the pending one
-
 ### Sync Triggers
-
-The queue is processed when:
-
-- window.online event fires
-- window.focus event fires
-- visibilitychange event fires
+- window.online event
+- window.focus event
+- visibilitychange event
 - Every 5 seconds (background check)
 - 500ms after page load
-
-### Timeout Protection
-
-- Each op has a 15-second timeout
-- getQueueCount has a 3-second timeout
-- Watchdog forces reset after 30 seconds
-- All timeouts use Promise.race
-
-### Limitations
-
-| Feature | Online | Offline |
-|---------|--------|---------|
-| Report item | Realtime | Queued |
-| Claim item | Yes | Queued |
-| Send message | Yes | Queued |
-| Browse items | Live | Cached only |
-| Realtime updates | Yes | No |
-| AI matching | Yes | No |
-
-## Deployment
-
-### Frontend — Vercel
-
-1. Push code to GitHub
-2. Go to vercel.com, import project
-3. Framework preset: Vite
-4. Add env vars: VITE_PB_URL and VITE_MATCHER_URL
-5. Deploy
-
-### Backend — PocketBase (Hosted on Wisbyte)
-
-The PocketBase backend and database are hosted on Wisbyte.
-
-1. Log in to your Wisbyte dashboard.
-2. Get the public URL provided by Wisbyte (e.g., `https://your-app.wisbyte.dev`).
-3. Set this URL as `VITE_PB_URL` in your Vercel environment variables.
-4. Configure CORS in Wisbyte to allow requests from your Vercel frontend URL.
-5. Upload the custom hook files (`password_reset.pb.js` and `signup_otp.pb.js`) to the `pb_hooks` folder via the Wisbyte file manager.
-6. Restart the Wisbyte server to apply the new hooks.
-
-### AI Service — Cloudflare Tunnel (Local / Defense Setup)
-
-    cd python-service
-    python app.py
-    # new terminal
-    cloudflared tunnel --url http://localhost:5000
-
-Copy the tunnel URL into VITE_MATCHER_URL.
 
 ## Expected Outcomes & Future Works
 
 **Expected Outcomes:**
-1. **Faster Item Recovery:** Because of the AI Matching Engine (Text and Image Analysis), the chances of finding the owner or the lost item are significantly higher and faster compared to manual Facebook group posting.
-2. **Centralized System:** Magkakaroon ng iisang platform ang SJC community para sa Lost & Found, kaya hindi na kailangang maghalungkat sa iba't ibang social media groups.
-3. **Data Privacy:** Since gagamitin ang PHINMAEd email, siguradong legitimate students, faculty, at staff lang ng SJC ang makakagamit ng system.
-4. **Operational Efficiency for Admin:** Magiging mas madali para sa SJC office ang mag-track, mag-verify, at mag-manage ng mga reported items gamit ang Admin Dashboard.
+1. **Faster Item Recovery:** Because of the AI Matching Engine, the chances of finding the owner or the lost item are higher and faster compared to manual Facebook group posting.
+2. **Centralized System:** Magkakaroon ng iisang platform ang SJC community para sa Lost & Found.
+3. **Data Privacy:** Legit students, faculty, at staff lang ng SJC ang makakagamit ng system dahil sa PHINMAEd email restriction.
+4. **Operational Efficiency for Admin:** Mas madali para sa SJC office ang mag-track at mag-manage ng mga reported items.
 
 **Future Works (Possibilities):**
-1. **SMS Notification Integration:** Para sa mga estudyanteng hindi madalas mag-check ng email, pwedeng magpadala ng SMS alerts kapag may AI Match na nahanap.
-2. **Advanced AI (CNN / YOLO):** Pwede pang i-upgrade ang Image Analysis gamit ang mas advanced na object detection models para makilala yung mismong item kahit iba ang anggulo ng pagkakakuha ng picture.
-3. **Analytics Dashboard:** Magdadagdag ng charts at graphs sa Admin para makita kung saang location sa campus ang pinakamaraming nawawalang item.
+1. **SMS Notification Integration:** Para sa mga estudyanteng hindi madalas mag-check ng email.
+2. **Advanced AI (CNN / YOLO):** I-upgrade ang Image Analysis gamit ang object detection models.
+3. **Analytics Dashboard:** Magdadagdag ng charts sa Admin para makita kung saang location madaming nawawalang item.
 
-## Possible Defense Questions & Answers
+## Possible Defense Questions & Answers (Taglish)
 
-Heto ang mga posibleng itanong ng panel sa defense at kung paano niyo sila sasagutin nang natural (Taglish):
+Heto ang mga posibleng itanong ng panel sa defense at kung paano niyo sila sasagutin nang natural:
 
-**Q: Bakit may Offline-First feature? Hindi naman laging walang internet.**
-* **A:** *"Opo, pero mahina ang signal ng campus WiFi sa ibang sulok ng school, tulad ng CR o basement. Kapag nag-report ang estudyante at biglang nawalan ng internet, masisira yung momentum at mawawala yung data. Sa pamamagitan ng IndexedDB, naka-save muna yung report nila locally. Kapag nagkaroon ulit ng connection, automatic siyang mag-s-sync sa database para hindi sila mahirapan."*
+**Q: Sino-sino ang pwedeng maging Admin? Kasama ba ang teachers?**
+* **A:** *"Hindi po. Ang Admin role ay exclusive para sa SJC Office or Student Affairs (tulad ng SAO). Sila yung humahawak ng Lost & Found. Yung mga teachers ay 'User' role lang po, same as students, kasi sila yung mga nagrereport at naghahanap ng gamit."*
 
-**Q: Bakit kailangan ng AI Matching? Bakit hindi na lang manual search?**
-* **A:** *"Malaki po ang campus natin at napakaraming items. Kapag manual search lang, mahihirapan ang user na i-scroll lahat ng reports. Yung AI natin (Text Similarity at Image Hashing) ang tumutulong para automatic na mag-match ang isang 'Lost' item sa isang 'Found' item. Kaya mas mabilis ang recovery process at mas accurate kaysa sa manual."*
+**Q: Paano kung ang nakakita ng item ay janitor o security guard na walang PHINMAEd email?**
+* **A:** *"Since required po ang PHINMAEd email, hindi sila makakagawa ng direct account. Ang protocol po is ibibigay nila physically yung item sa SJC Office. Then, ang Admin po ang magre-report non sa system on their behalf para pumasok sa database at AI matching. This ensures na lahat ng items ay accounted for at legitimate."*
 
-**Q: Paano niyo sinisiguro na secure ang system niyo?**
-* **A:** *"Una, naka-limit sa PHINMAEd email ang registration, kaya legit students, faculty, at staff lang ang makakapasok. Pangalawa, gumamit kami ng OTP (One-Time Password) na naka-hook sa PocketBase para sa password resets, para hindi basta-basta makakapag-bago ng password ang kahit sino. At pangatlo, ang mga sensitive actions, tulad ng pag-approve ng claims, ay exclusive lang sa Admin role."*
+**Q: Saan nakikita ng user yung AI Match notification?**
+* **A:** *"Real-time po. Pagka-click ng admin sa 'Run AI Match', mag-ge-generate ng notification record sa database. Dahil naka-WebSocket tayo, magkakaroon agad ng red badge yung bell icon sa screen ng user. Makikita din nila yung match card sa 'Potential Matches' panel sa items page nila kung saan pwede nila i-confirm at mag-start ng chat."*
 
-**Q: Paano nag-uusap ang frontend, backend, at AI service niyo?**
-* **A:** *"Ang frontend natin ay hosted sa Vercel at nakikipag-communicate sa PocketBase (hosted on Wisbyte) gamit ang REST API at WebSockets para sa real-time updates. Para naman sa AI matching, yung frontend ay nagpapadala ng request sa Python Flask microservice natin through Cloudflare Tunnel para i-analyze yung images at i-compute yung similarity score."*
+**Q: Sa UML/DFD, paano nag-uusap ang system?**
+* **A:** *"Sa flow po: Admin clicks 'Run AI Match' -> Frontend calls Python AI Microservice -> Python computes image similarity -> PocketBase saves to `matches` and `notifications` database -> User receives the alert via WebSocket at mag-aappear sa UI nila."*
+
+**Q: Ano ba talaga ang Wispbyte, PocketBase, at SQLite?**
+* **A:** *"Wisbyte is the cloud hosting provider (yung server). PocketBase is the backend application running inside Wisbyte. And SQLite is the actual database engine na nag-iimbak ng data. Yung IndexedDB naman po ay local database sa browser para sa offline mode."*
+
+**Q: Bakit may Offline-First feature?**
+* **A:** *"Mahina po ang campus WiFi sa ibang sulok ng school. Kapag nawalan ng internet, naka-save yung report sa IndexedDB. Kapag bumalik ang connection, automatic siyang mag-s-sync sa SQLite database para hindi mawala yung data."*
 
 **Q: Bakit walang 'Delete' button sa Admin Dashboard?**
-* **A:** *"Sadya po naming tinanggal ang delete button para mapanatili ang data integrity. Ayaw namin na mabura yung mga items dahil kailangan ng AI matching algorithm na may complete historical dataset para maging accurate ang image analysis. Imbes na i-delete, gumagamit kami ng statuses tulad ng 'Verified' o 'Recovered' para may proper audit trail."*
-
-**Q: Bakit PocketBase ang ginamit niyo bilang backend?**
-* **A:** *"PocketBase is an all-in-one backend solution. Mayroon na siyang built-in SQLite database, realtime subscriptions, at authentication system out-of-the-box. Nakakatipid kami sa oras sa pag-setup ng backend infrastructure at nakapag-focus kami sa mas mahahalagang features tulad ng AI matching at offline-first capabilities."*
-
-**Q: Paano kung nag-fail yung AI Matching? Paano pa makukuha ng user yung item niya?**
-* **A:** *"Kahit hindi mag-match ang AI, may manual browsing pa rin naman po sa 'Lost & Found' page. Pwede pa rin i-search ng user yung item manually. At the same time, may 'Ask Admin' feature po tayo kung saan pwedeng direktang mag-inquire yung estudyante sa SJC office para i-verify yung item."*
-
-## Troubleshooting
-
-**Cannot reach the server** — Check PocketBase is running. Verify .env.local. Restart Vite after changing env vars.
-
-**PHINMAEd email required** — Sign up with email ending in @phinmaed.com.
-
-**Image matching not working** — Check Python service at http://localhost:5000/health. Text matching still works offline.
-
-**Syncing stuck** — DevTools, Application, IndexedDB, sjc-lost-found, queue, Delete database, Refresh.
-
-**OTP not received / Failed to send OTP** — Check Wisbyte logs for `SMTP ERROR`. Verify that SMTP settings (host, port, username, password, sender address) are properly configured in the PocketBase Admin UI > Settings > Mail settings. Ensure the `otp_codes` collection exists.
+* **A:** *"Sadya po naming tinanggal ang delete button para mapanatili ang data integrity. Kailangan ng AI matching algorithm na may complete historical dataset para maging accurate. Imbes na i-delete, gumagamit kami ng statuses tulad ng 'Verified' o 'Recovered'."*
 
 ## Team ArkNights
 
