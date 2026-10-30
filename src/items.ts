@@ -80,8 +80,9 @@ function renderItems(items: Item[]): void {
                     ? '<span class="verified-badge">Verified</span>'
                     : '';
 
+            // FIX: Idinagdag natin ang condition na currentUser?.role !== 'admin'
             const canClaim =
-                item.verified && !item.recovered && item.status === 'found';
+                item.verified && !item.recovered && item.status === 'found' && currentUser?.role !== 'admin';
 
             let claimBtn = '';
             if (canClaim) {
@@ -94,7 +95,8 @@ function renderItems(items: Item[]): void {
                 }
             }
 
-            const askAdminBtn = item.verified && !item.recovered
+            // FIX: Idinagdag natin ang condition na currentUser?.role !== 'admin'
+            const askAdminBtn = item.verified && !item.recovered && currentUser?.role !== 'admin'
                 ? `<button type="button" class="ask-admin-button" data-ask-admin="${item.id}">Ask Admin</button>`
                 : '';
 
@@ -632,7 +634,14 @@ bindAskAdminModal();
 onAuthChange(async (fbUser) => {
     if (fbUser) {
         currentUser = await getUserProfile(fbUser.uid);
+        
         if (currentUser) {
+            // FIX: Itago ang "Report" link sa navbar kung Admin
+            if (currentUser.role === 'admin') {
+                const reportLink = document.querySelector('.nav-links a[href="report.html"]') as HTMLElement;
+                if (reportLink) reportLink.style.display = 'none';
+            }
+
             try {
                 myClaims = await getClaimsByUser(currentUser.uid);
             } catch (err) {
