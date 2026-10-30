@@ -185,6 +185,11 @@ document.getElementById('reportForm')?.addEventListener('submit', async (e) => {
     setButtonLoading(submitBtn, true, 'Submitting...');
 
     try {
+        // FIX: Kukunin muna natin yung value bago pumasok sa try-catch block
+        const reportTypeEl = document.getElementById('reportType') as HTMLSelectElement;
+        const rawStatus = reportTypeEl.value;
+        const statusValue: ItemStatus = rawStatus === 'found' ? 'found' : 'lost';
+
         const itemId = await createItemOffline({
             userId: currentUser.uid,
             userName: currentUser.fullName,
@@ -193,7 +198,7 @@ document.getElementById('reportForm')?.addEventListener('submit', async (e) => {
             category: (document.getElementById('category') as HTMLSelectElement).value as ItemCategory,
             location: (document.getElementById('location') as HTMLInputElement).value.trim(),
             description: (document.getElementById('description') as HTMLTextAreaElement).value.trim(),
-            status: (document.getElementById('reportType') as HTMLSelectElement).value as ItemStatus,
+            status: statusValue, // <--- Dito natin ipapasa yung tamang status
             date: (document.getElementById('date') as HTMLInputElement).value,
             files: [...uploadedFiles]
         });
